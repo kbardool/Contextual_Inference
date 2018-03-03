@@ -30,7 +30,7 @@ Usage: import the module (see Jupyter notebooks for examples), or run from
 import os
 import time
 import numpy as np
-
+print(' breakpoint 1')
 # Download and install the Python COCO tools from https://github.com/waleedka/coco
 # That's a fork from the original https://github.com/pdollar/coco with a bug
 # fix for Python 3.
@@ -38,12 +38,15 @@ import numpy as np
 # If the PR is merged then use the original repo.
 # Note: Edit PythonAPI/Makefile and replace "python" with "python3".
 from pycocotools.coco import COCO
+print(' breakpoint 2')
+
 from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as maskUtils
 
-from config import Config
-import utils
-import model as modellib
+from   mrcnn.config import Config
+import mrcnn.utils as utils
+import mrcnn.model as modellib
+import mrcnn.dataset as dataset
 
 # Root directory of the project
 ROOT_DIR = os.getcwd()
@@ -80,18 +83,19 @@ class CocoConfig(Config):
 
 
 ############################################################
-#  Dataset
+#  COCO Dataset Class extension
 ############################################################
 
-class CocoDataset(utils.Dataset):
+class CocoDataset(dataset.Dataset):
+    
     def load_coco(self, dataset_dir, subset, class_ids=None,
                   class_map=None, return_coco=False):
         """Load a subset of the COCO dataset.
-        dataset_dir: The root directory of the COCO dataset.
-        subset: What to load (train, val, minival, val35k)
-        class_ids: If provided, only loads images that have the given classes.
-        class_map: TODO: Not implemented yet. Supports maping classes from
-            different datasets to the same class ID.
+        dataset_dir:    The root directory of the COCO dataset.
+        subset:         What to load (train, val, minival, val35k)
+        class_ids:      If provided, only loads images that have the given classes.
+        class_map:      TODO: Not implemented yet. Supports maping classes from
+                              different datasets to the same class ID.
         return_coco: If True, returns the COCO object.
         """
         # Path
@@ -103,10 +107,10 @@ class CocoDataset(utils.Dataset):
         
         # Create COCO object
         json_path_dict = {
-            "train": "annotations/instances_train2014.json",
-            "val": "annotations/instances_val2014.json",
-            "minival": "annotations/instances_minival2014.json",
-            "val35k": "annotations/instances_valminusminival2014.json",
+            "train" :   "annotations/instances_train2014.json",
+            "val"   :   "annotations/instances_val2014.json",
+            "minival":  "annotations/instances_minival2014.json",
+            "val35k":   "annotations/instances_valminusminival2014.json",
         }
         coco = COCO(os.path.join(dataset_dir, json_path_dict[subset]))
 
@@ -162,8 +166,10 @@ class CocoDataset(utils.Dataset):
         instance_masks = []
         class_ids = []
         annotations = self.image_info[image_id]["annotations"]
+        
         # Build mask of shape [height, width, instance_count] and list
         # of class IDs that correspond to each channel of the mask.
+        
         for annotation in annotations:
             class_id = self.map_source_class_id(
                 "coco.{}".format(annotation['category_id']))
@@ -194,6 +200,7 @@ class CocoDataset(utils.Dataset):
             # Call super class to return an empty mask
             return super(self.__class__).load_mask(image_id)
 
+        
     def image_reference(self, image_id):
         """Return a link to the image in the COCO Website."""
         info = self.image_info[image_id]
@@ -204,6 +211,7 @@ class CocoDataset(utils.Dataset):
 
     # The following two functions are from pycocotools with a few changes.
 
+    
     def annToRLE(self, ann, height, width):
         """
         Convert annotation which can be polygons, uncompressed RLE to RLE.
@@ -234,7 +242,7 @@ class CocoDataset(utils.Dataset):
 
 
 ############################################################
-#  COCO Evaluation
+#  COCO Evaluation - Build Results
 ############################################################
 
 def build_coco_results(dataset, image_ids, rois, class_ids, scores, masks):
@@ -245,6 +253,7 @@ def build_coco_results(dataset, image_ids, rois, class_ids, scores, masks):
         return []
 
     results = []
+    
     for image_id in image_ids:
         # Loop through detections
         for i in range(rois.shape[0]):
@@ -263,12 +272,15 @@ def build_coco_results(dataset, image_ids, rois, class_ids, scores, masks):
             results.append(result)
     return results
 
+############################################################
+#  Evaluate Coco
+############################################################
 
 def evaluate_coco(model, dataset, coco, eval_type="bbox", limit=0, image_ids=None):
     """Runs official COCO evaluation.
-    dataset: A Dataset object with valiadtion data
-    eval_type: "bbox" or "segm" for bounding box or segmentation evaluation
-    limit: if not 0, it's the number of images to use for evaluation
+    dataset:    A Dataset object with valiadtion data
+    eval_type:  "bbox" or "segm" for bounding box or segmentation evaluation
+    limit:      if not 0, it's the number of images to use for evaluation
     """
     # Pick COCO images from the dataset
     image_ids = image_ids or dataset.image_ids
@@ -361,6 +373,15 @@ if __name__ == '__main__':
         config = InferenceConfig()
     config.display()
 
+    import tensorflow as tf
+    from keras.backend.tensorflow_backend import set_session
+    # tf_config = tf.ConfigProto()
+    # tf_config.gpu_options.per_process_gpu_memory_fraction = 0.55
+    # set_session(tf.Session(config=tf_config))
+    
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.55)
+    set_session(tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)))
+    
     # Create model
     if args.command == "train":
         model = modellib.MaskRCNN(mode="training", config=config,
@@ -370,6 +391,7 @@ if __name__ == '__main__':
                                   model_dir=args.logs)
 
     # Select weights file to load
+    #-----------------------------------------------------
     if args.model.lower() == "coco":
         model_path = COCO_MODEL_PATH
     elif args.model.lower() == "last":
@@ -382,10 +404,12 @@ if __name__ == '__main__':
         model_path = args.model
 
     # Load weights
+    #-----------------------------------------------------
     print("Loading weights ", model_path)
     model.load_weights(model_path, by_name=True)
 
     # Train or evaluate
+    #-----------------------------------------------------
     if args.command == "train":
         # Training dataset. Use the training set and 35K from the
         # validation set, as as in the Mask RCNN paper.
@@ -423,7 +447,9 @@ if __name__ == '__main__':
                     learning_rate=config.LEARNING_RATE / 10,
                     epochs=160,
                     layers='all')
-
+    #-----------------------------------------------------
+    # Evaluate 
+    #-----------------------------------------------------
     elif args.command == "evaluate":
         # Validation dataset
         dataset_val = CocoDataset()
