@@ -7,7 +7,10 @@
 # This notebook shows how to train Mask R-CNN on your own dataset. To keep things simple we use a synthetic dataset of shapes (squares, triangles, and circles) which enables fast training. You'd still need a GPU, though, because the network backbone is a Resnet101, which would be too slow to train on a CPU. On a GPU, you can start to get okay-ish results in a few minutes, and good results in less than an hour.
 # 
 # The code of the *Shapes* dataset is included below. It generates images on the fly, so it doesn't require downloading any data. And it can generate images of any size, so we pick a small image size to train faster. 
-from IPython import get_ipython
+
+# In[1]:
+
+
 # get_ipython().run_line_magic('matplotlib', 'inline')
 # get_ipython().run_line_magic('load_ext', 'autoreload')
 # get_ipython().run_line_magic('autoreload', '2')
@@ -21,7 +24,7 @@ import numpy as np
 import cv2
 import matplotlib
 import matplotlib.pyplot as plt
-# sys.path.append('../')
+sys.path.append('../')
 
 from mrcnn.config import Config
 import mrcnn.model as modellib
@@ -43,32 +46,56 @@ import tensorflow as tf
 import keras
 print("Tensorflow Version: {}   Keras Version : {} ".format(tf.__version__,keras.__version__))
 
-#--------------------------------------------------------------------------
-# ## Configurations
-#--------------------------------------------------------------------------
-config = shapes.ShapesConfig()
-config.IMAGES_PER_GPU = 2
-config.BATCH_SIZE = 2               #Batch size is 2 (# GPUs * images/GPU).
 
+# ## Configurations
+
+# In[2]:
+
+
+from keras import backend as KB
+if 'tensorflow' == KB.backend():
+    import tensorflow as tf
+    from keras.backend.tensorflow_backend import set_session
+    # tfconfig = tf.ConfigProto(
+        # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5),
+        # device_count = {'GPU': 1}
+    # )    
+    tfconfig = tf.ConfigProto()
+    tfconfig.gpu_options.allow_growth=True
+    tfconfig.gpu_options.visible_device_list = "0"
+    set_session(tf.Session(config=tfconfig))
+
+
+# In[3]:
+
+
+config = shapes.ShapesConfig()
+config.BATCH_SIZE      = 6
+config.IMAGES_PER_GPU  = 6
 config.STEPS_PER_EPOCH = 3
+# config.IMAGES_PER_GPU  = 1
+
 config.display() 
 
 
 # ## Notebook Preferences
-# def get_ax(rows=1, cols=1, size=8):
-    # """Return a Matplotlib Axes array to be used in
-    # all visualizations in the notebook. Provide a
-    # central point to control graph sizes.
-    
-    # Change the default size attribute to control the size
-    # of rendered images
-    # """
-    # _, ax = plt.subplots(rows, cols, figsize=(size*cols, size*rows))
-    # return ax
 
-#--------------------------------------------------------------------------
+# In[6]:
+
+
+def get_ax(rows=1, cols=1, size=8):
+    """Return a Matplotlib Axes array to be used in
+    all visualizations in the notebook. Provide a
+    central point to control graph sizes.
+    
+    Change the default size attribute to control the size
+    of rendered images
+    """
+    _, ax = plt.subplots(rows, cols, figsize=(size*cols, size*rows))
+    return ax
+
+
 # ## Dataset
-#--------------------------------------------------------------------------
 # 
 # Create a synthetic dataset
 # 
@@ -77,6 +104,9 @@ config.display()
 # * load_image()
 # * load_mask()
 # * image_reference()
+
+# In[5]:
+
 
 # Training dataset
 # generate 500 shapes 
@@ -90,24 +120,28 @@ dataset_val.load_shapes(50, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
 dataset_val.prepare()
 
 
-# In[29]:
+# In[6]:
 
-#--------------------------------------------------------------------------
+
 # Load and display random samples
-#--------------------------------------------------------------------------
-# image_ids = np.random.choice(dataset_train.image_ids, 1)
+# image_ids = np.random.choice(dataset_train.image_ids, 3)
 # for image_id in image_ids:
     # image = dataset_train.load_image(image_id)
     # mask, class_ids = dataset_train.load_mask(image_id)
     # visualize.display_top_masks(image, mask, class_ids, dataset_train.class_names)
 
-#--------------------------------------------------------------------------
+
 # ## Create Model
-#--------------------------------------------------------------------------
+
 # import importlib
 # importlib.reload(model)
 # Create model in training mode
 # MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_logs")
+import  gc
+# del history
+# del model.keras_model
+gc.collect()
+
 model = modellib.MaskRCNN(mode="training", config=config,
                           model_dir=MODEL_DIR)
 
@@ -118,10 +152,9 @@ print(RESNET_MODEL_PATH)
 print(MODEL_DIR)
 print(model.find_last())
 
-
-#--------------------------------------------------------------------------
-# Load Weights -- Which weights to start with?
-#--------------------------------------------------------------------------
+#--------------------------------------------------------------
+# Which weights to start with?
+#--------------------------------------------------------------
 init_with = "last"  # imagenet, coco, or last
 
 if init_with == "imagenet":
@@ -138,48 +171,73 @@ elif init_with == "last":
     # Load the last model you trained and continue training
     loc= model.load_weights(model.find_last()[1], by_name=True)
 
-#--------------------------------------------------------------------------
+
+#--------------------------------------------------------------
+#--------------------------------------------------------------
+# for i in range(len(model.keras_model.layers)):
+    # print(i, ' Name of layer: ', model.keras_model.layers[i].name)
+model.keras_model.summary(line_length=110)
+
+# sess = tf.InteractiveSession()
+# model.keras_model.layers[229].output.eval()
+
+#--------------------------------------------------------------
 # ## Training
-#--------------------------------------------------------------------------
+# 
 # Train in two stages:
-# 1. Only the heads. Here we're freezing all the backbone layers and training only the 
-#    randomly initialized layers (i.e. the ones that we didn't use pre-trained weights from MS COCO). 
+#
+# 1. Only the heads. Here we're freezing all the backbone layers and 
+#    training only the randomly initialized layers (i.e. the ones 
+#    that we didn't use pre-trained weights from MS COCO). 
 #    To train only the head layers, pass `layers='heads'` to the `train()` function.
 # 
-# 2. Fine-tune all layers. For this simple example it's not necessary, but we're including it to show the process. Simply pass `layers="all` to train all layers.
+# 2. Fine-tune all layers. For this simple example it's not necessary, 
+#    but we're including it to show the process. 
+#    Simply pass `layers="all` to train all layers.
+#--------------------------------------------------------------
 
+
+
+#--------------------------------------------------------------
 # Train the head branches
 # Passing layers="heads" freezes all layers except the head
 # layers. You can also pass a regular expression to select
 # which layers to train by name pattern.
-model.train(dataset_train, dataset_val, 
+#--------------------------------------------------------------
+model.train(dataset_train, 
+            dataset_val, 
             learning_rate=config.LEARNING_RATE, 
-            epochs=1, 
-            batch_size = 2,
-            steps_per_epoch = 5,
+            epochs=5, 
             layers='heads')
 
-#--------------------------------------------------------------------------
+
+# model.keras_model.summary(line_length=110)
+# from keras.utils import plot_model
+# plot_model(model.keras_model, to_file='model.png')
+
+
+#--------------------------------------------------------------
 # Fine tune all layers
-#--------------------------------------------------------------------------
 # Passing layers="all" trains all layers. You can also 
 # pass a regular expression to select which layers to
 # train by name pattern.
+#--------------------------------------------------------------
+# config.STEPS_PER_EPOCH = 5
 # model.train(dataset_train, dataset_val, 
             # learning_rate=config.LEARNING_RATE / 10,
-            # epochs=2, 
+            # epochs=4,
             # layers="all")
-#--------------------------------------------------------------------------
+
+
+#--------------------------------------------------------------            
 # Save weights
-#--------------------------------------------------------------------------
 # Typically not needed because callbacks save after every epoch
 # Uncomment to save manually
 # model_path = os.path.join(MODEL_DIR, "mask_rcnn_shapes.h5")
 # model.keras_model.save_weights(model_path)
+#--------------------------------------------------------------
 
-#--------------------------------------------------------------------------
 # ## Detection
-#--------------------------------------------------------------------------
 
 # class InferenceConfig(ShapesConfig):
     # GPU_COUNT = 1
@@ -188,6 +246,7 @@ model.train(dataset_train, dataset_val,
 # inference_config = InferenceConfig()
 
 # Recreate the model in inference mode
+
 # model = modellib.MaskRCNN(mode="inference", 
                           # config=inference_config,
                           # model_dir=MODEL_DIR)
@@ -202,32 +261,40 @@ model.train(dataset_train, dataset_val,
 # print("Loading weights from ", model_path)
 # model.load_weights(model_path, by_name=True)
 
-##--------------------------------------------------------------------------
-## Test on a random image
-##--------------------------------------------------------------------------
-image_id = random.choice(dataset_val.image_ids)
 
-original_image, image_meta, gt_class_id, gt_bbox, gt_mask =  \
-            load_image_gt(dataset_val, inference_config, image_id, use_mini_mask=False)
+# In[ ]:
 
-log("original_image ", original_image)
-log("image_meta     ", image_meta)
-log("gt_class_id    ", gt_bbox)
-log("gt_bbox        ", gt_bbox)
-log("gt_mask        ", gt_mask)
 
-visualize.display_instances(original_image, gt_bbox, gt_mask, gt_class_id, 
-                            dataset_train.class_names, figsize=(8, 8))
+# Test on a random image
+# image_id = random.choice(dataset_val.image_ids)
+
+# original_image, image_meta, gt_class_id, gt_bbox, gt_mask =    modellib.load_image_gt(dataset_val, inference_config, image_id, use_mini_mask=False)
+
+# log("original_image", original_image)
+# log("image_meta", image_meta)
+# log("gt_class_id", gt_bbox)
+# log("gt_bbox", gt_bbox)
+# log("gt_mask", gt_mask)
+
+# visualize.display_instances(original_image, gt_bbox, gt_mask, gt_class_id, 
+                            # dataset_train.class_names, figsize=(8, 8))
+
+
+# In[ ]:
 
 
 # results = model.detect([original_image], verbose=1)
+
 # r = results[0]
 # visualize.display_instances(original_image, r['rois'], r['masks'], r['class_ids'], 
                             # dataset_val.class_names, r['scores'], ax=get_ax())
 
-#--------------------------------------------------------------------------
+
 # ## Evaluation
-#--------------------------------------------------------------------------
+
+# In[ ]:
+
+
 # Compute VOC-Style mAP @ IoU=0.5
 # Running on 10 images. Increase for better accuracy.
 # image_ids = np.random.choice(dataset_val.image_ids, 10)
@@ -240,7 +307,7 @@ visualize.display_instances(original_image, gt_bbox, gt_mask, gt_class_id,
     # Run object detection
     # results = model.detect([image], verbose=0)
     # r = results[0]
-# Compute AP
+    # Compute AP
     # AP, precisions, recalls, overlaps =        utils.compute_ap(gt_bbox, gt_class_id,
                          # r["rois"], r["class_ids"], r["scores"])
     # APs.append(AP)

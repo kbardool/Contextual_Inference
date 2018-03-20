@@ -88,8 +88,10 @@ class ShapesDataset(Dataset):
         """
         info = self.image_info[image_id]
         bg_color = np.array(info['bg_color']).reshape([1, 1, 3])
+        
         image = np.ones([info['height'], info['width'], 3], dtype=np.uint8)
         image = image * bg_color.astype(np.uint8)
+        
         for shape, color, dims in info['shapes']:
             image = self.draw_shape(image, shape, dims, color)
         return image
@@ -105,10 +107,12 @@ class ShapesDataset(Dataset):
     def load_mask(self, image_id):
         """Generate instance masks for shapes of the given image ID.
         """
+        # print(' Loading shapes obj mask infofor image_id : ',image_id)
         info = self.image_info[image_id]
         shapes = info['shapes']
         count = len(shapes)
         mask = np.zeros([info['height'], info['width'], count], dtype=np.uint8)
+        # print(' Shapes obj mask shape is :',mask.shape)
         for i, (shape, _, dims) in enumerate(info['shapes']):
             mask[:, :, i:i + 1] = self.draw_shape(mask[:, :, i:i + 1].copy(),
                                                   shape, dims, 1)
@@ -127,8 +131,7 @@ class ShapesDataset(Dataset):
         # Get the center x, y and the size s
         x, y, s = dims
         if shape == 'square':
-            image = cv2.rectangle(image, (x - s, y - s),
-                                  (x + s, y + s), color, -1)
+            image = cv2.rectangle(image, (x - s, y - s), (x + s, y + s), color, -1)
         elif shape == "circle":
             image = cv2.circle(image, (x, y), s, color, -1)
         elif shape == "triangle":

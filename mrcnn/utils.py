@@ -55,14 +55,15 @@ def parse_image_meta(meta):
 
 
 def parse_image_meta_graph(meta):
-    """Parses a tensor that contains image attributes to its components.
+    """
+    Parses a tensor that contains image attributes to its components.
     See compose_image_meta() for more details.
 
-    meta: [batch, meta length] where meta length depends on NUM_CLASSES
+    meta:       [batch, meta length] where meta length depends on NUM_CLASSES
     """
-    image_id = meta[:, 0]
+    image_id    = meta[:, 0]
     image_shape = meta[:, 1:4]
-    window = meta[:, 4:8]
+    window      = meta[:, 4:8]
     active_class_ids = meta[:, 8:]
     return [image_id, image_shape, window, active_class_ids]
 
@@ -145,7 +146,7 @@ def extract_bboxes(mask):
         m = mask[:, :, i]
         # Bounding box.
         horizontal_indicies = np.where(np.any(m, axis=0))[0]
-        vertical_indicies = np.where(np.any(m, axis=1))[0]
+        vertical_indicies   = np.where(np.any(m, axis=1))[0]
         if horizontal_indicies.shape[0]:
             x1, x2 = horizontal_indicies[[0, -1]]
             y1, y2 = vertical_indicies[[0, -1]]
@@ -161,11 +162,12 @@ def extract_bboxes(mask):
 
 
 def compute_iou(box, boxes, box_area, boxes_area):
-    """Calculates IoU of the given box with the array of the given boxes.
-    box: 1D vector [y1, x1, y2, x2]
-    boxes: [boxes_count, (y1, x1, y2, x2)]
-    box_area: float. the area of 'box'
-    boxes_area: array of length boxes_count.
+    """
+    Calculates IoU of the given box with the array of the given boxes.
+    box:                1D vector [y1, x1, y2, x2]
+    boxes:              [boxes_count, (y1, x1, y2, x2)]
+    box_area:           float. the area of 'box'
+    boxes_area:         array of length boxes_count.
 
     Note: the areas are passed in rather than calculated here for
           efficency. Calculate once in the caller to avoid duplicate work.
@@ -182,7 +184,8 @@ def compute_iou(box, boxes, box_area, boxes_area):
 
 
 def compute_overlaps(boxes1, boxes2):
-    """Computes IoU overlaps between two sets of boxes.
+    """
+    Computes IoU overlaps between two sets of boxes.
     boxes1, boxes2: [N, (y1, x1, y2, x2)].
 
     For better performance, pass the largest set first and the smaller second.
@@ -225,90 +228,134 @@ def non_max_suppression(boxes, scores, threshold):
         # Pick top box and add its index to the list
         i = ixs[0]
         pick.append(i)
+        
         # Compute IoU of the picked box with the rest
         iou = compute_iou(boxes[i], boxes[ixs[1:]], area[i], area[ixs[1:]])
+        
         # Identify boxes with IoU over the threshold. This
         # returns indicies into ixs[1:], so add 1 to get
         # indicies into ixs.
         remove_ixs = np.where(iou > threshold)[0] + 1
+        
         # Remove indicies of the picked and overlapped boxes.
         ixs = np.delete(ixs, remove_ixs)
         ixs = np.delete(ixs, 0)
+    
     return np.array(pick, dtype=np.int32)
 
 
 def apply_box_deltas(boxes, deltas):
-    """Applies the given deltas to the given boxes.
-    boxes: [N, (y1, x1, y2, x2)]. Note that (y2, x2) is outside the box.
-    deltas: [N, (dy, dx, log(dh), log(dw))]
     """
-    boxes = boxes.astype(np.float32)
+    Applies the given deltas to the given boxes.
+    boxes:          [N, (y1, x1, y2, x2)]. 
+                    Note that (y2, x2) is outside the box.
+    deltas:         [N, (dy, dx, log(dh), log(dw))]
+    """
+    
+    boxes    = boxes.astype(np.float32)
+    
     # Convert to y, x, h, w
-    height = boxes[:, 2] - boxes[:, 0]
-    width = boxes[:, 3] - boxes[:, 1]
+    height   = boxes[:, 2] - boxes[:, 0]
+    width    = boxes[:, 3] - boxes[:, 1]
     center_y = boxes[:, 0] + 0.5 * height
     center_x = boxes[:, 1] + 0.5 * width
+    
     # Apply deltas
     center_y += deltas[:, 0] * height
     center_x += deltas[:, 1] * width
-    height *= np.exp(deltas[:, 2])
-    width *= np.exp(deltas[:, 3])
+    height   *= np.exp(deltas[:, 2])
+    width    *= np.exp(deltas[:, 3])
+    
     # Convert back to y1, x1, y2, x2
     y1 = center_y - 0.5 * height
     x1 = center_x - 0.5 * width
     y2 = y1 + height
     x2 = x1 + width
+    
     return np.stack([y1, x1, y2, x2], axis=1)
 
+############################################################
+#  Miscellenous Graph Functions
+############################################################
 
-def box_refinement_graph(box, gt_box):
-    """Compute refinement needed to transform box to gt_box.
-    box and gt_box are [N, (y1, x1, y2, x2)]
+def trim_zeros_graph(boxes, name=None):
     """
-    box = tf.cast(box, tf.float32)
-    gt_box = tf.cast(gt_box, tf.float32)
+    Often boxes are represented with matricies of shape [N, 4] and
+    are padded with zeros. This removes zero boxes by summing the coordinates
+    of boxes, converting 0 to False and <> 0 ti True and creating a boolean mask
+    
+    boxes:      [N, 4] matrix of boxes.
+    non_zeros:  [N] a 1D boolean mask identifying the rows to keep
+    """
+    # sum tf.abs(boxes) across axis 1 (sum all cols for each row) and cast to boolean.
+    non_zeros = tf.cast(tf.reduce_sum(tf.abs(boxes), axis=1), tf.bool)
+    
+    # extract non-zero rows from boxes
+    boxes = tf.boolean_mask(boxes, non_zeros, name=name)
+    return boxes, non_zeros
 
-    height = box[:, 2] - box[:, 0]
-    width = box[:, 3] - box[:, 1]
-    center_y = box[:, 0] + 0.5 * height
-    center_x = box[:, 1] + 0.5 * width
+def batch_pack_graph(x, counts, num_rows):
+    """Picks different number of values from each row
+    in x depending on the values in counts.
+    """
+    outputs = []
+    for i in range(num_rows):
+        outputs.append(x[i, :counts[i]])
+    return tf.concat(outputs, axis=0)
+    
+    
+def box_refinement_graph(box, gt_box):
+    """
+    Compute refinement needed to transform box to gt_box.
+    (tensorflow version)
+    box and gt_box:     [N, (y1, x1, y2, x2)]
+    """
+    box         = tf.cast(box, tf.float32)
+    gt_box      = tf.cast(gt_box, tf.float32)
 
-    gt_height = gt_box[:, 2] - gt_box[:, 0]
-    gt_width = gt_box[:, 3] - gt_box[:, 1]
+    height      = box[:, 2] - box[:, 0]
+    width       = box[:, 3] - box[:, 1]
+    center_y    = box[:, 0] + 0.5 * height
+    center_x    = box[:, 1] + 0.5 * width
+
+    gt_height   = gt_box[:, 2] - gt_box[:, 0]
+    gt_width    = gt_box[:, 3] - gt_box[:, 1]
     gt_center_y = gt_box[:, 0] + 0.5 * gt_height
     gt_center_x = gt_box[:, 1] + 0.5 * gt_width
 
-    dy = (gt_center_y - center_y) / height
-    dx = (gt_center_x - center_x) / width
-    dh = tf.log(gt_height / height)
-    dw = tf.log(gt_width / width)
+    dy          = (gt_center_y - center_y) / height
+    dx          = (gt_center_x - center_x) / width
+    dh          = tf.log(gt_height / height)
+    dw          = tf.log(gt_width / width)
 
     result = tf.stack([dy, dx, dh, dw], axis=1)
     return result
 
 
 def box_refinement(box, gt_box):
-    """Compute refinement needed to transform box to gt_box.
-    box and gt_box are [N, (y1, x1, y2, x2)]. (y2, x2) is
-    assumed to be outside the box.
     """
-    box = box.astype(np.float32)
-    gt_box = gt_box.astype(np.float32)
+    Compute refinement needed to transform box to gt_box.
+    (Non tensorflow version)
+    box and gt_box:     [N, (y1, x1, y2, x2)]
+                        (y2, x2) is  assumed to be outside the box.
+    """
+    box         = box.astype(np.float32)
+    gt_box      = gt_box.astype(np.float32)
 
-    height = box[:, 2] - box[:, 0]
-    width = box[:, 3] - box[:, 1]
-    center_y = box[:, 0] + 0.5 * height
-    center_x = box[:, 1] + 0.5 * width
+    height      = box[:, 2] - box[:, 0]
+    width       = box[:, 3] - box[:, 1]
+    center_y    = box[:, 0] + 0.5 * height
+    center_x    = box[:, 1] + 0.5 * width
 
-    gt_height = gt_box[:, 2] - gt_box[:, 0]
-    gt_width = gt_box[:, 3] - gt_box[:, 1]
+    gt_height   = gt_box[:, 2] - gt_box[:, 0]
+    gt_width    = gt_box[:, 3] - gt_box[:, 1]
     gt_center_y = gt_box[:, 0] + 0.5 * gt_height
     gt_center_x = gt_box[:, 1] + 0.5 * gt_width
 
-    dy = (gt_center_y - center_y) / height
-    dx = (gt_center_x - center_x) / width
-    dh = np.log(gt_height / height)
-    dw = np.log(gt_width / width)
+    dy          = (gt_center_y - center_y) / height
+    dx          = (gt_center_x - center_x) / width
+    dh          = np.log(gt_height / height)
+    dw          = np.log(gt_width / width)
 
     return np.stack([dy, dx, dh, dw], axis=1)
 
@@ -560,12 +607,15 @@ def compute_recall(pred_boxes, gt_boxes, iou):
 
 
 # ## Batch Slicing
-# Some custom layers support a batch size of 1 only, and require a lot of work
-# to support batches greater than 1. This function slices an input tensor
-# across the batch dimension and feeds batches of size 1. Effectively,
-# an easy way to support batches > 1 quickly with little code modification.
-# In the long run, it's more efficient to modify the code to support large
-# batches and getting rid of this function. Consider this a temporary solution
+#   Some custom layers support a batch size of 1 only, and require a lot of work
+#   to support batches greater than 1. This function slices an input tensor
+#   across the batch dimension and feeds batches of size 1. Effectively,
+#   an easy way to support batches > 1 quickly with little code modification.
+#   In the long run, it's more efficient to modify the code to support large
+#   batches and getting rid of this function. Consider this a temporary solution
+#   batch dimension size:
+#       DetectionTargetLayer    IMAGES_PER_GPU  * # GPUs (batch size)
+#
 
 def batch_slice(inputs, graph_fn, batch_size, names=None):
     """
@@ -607,28 +657,5 @@ def batch_slice(inputs, graph_fn, batch_size, names=None):
 
     return result
 
-############################################################
-#  Miscellenous Graph Functions
-############################################################
 
-def trim_zeros_graph(boxes, name=None):
-    """Often boxes are represented with matricies of shape [N, 4] and
-    are padded with zeros. This removes zero boxes.
-
-    boxes: [N, 4] matrix of boxes.
-    non_zeros: [N] a 1D boolean mask identifying the rows to keep
-    """
-    non_zeros = tf.cast(tf.reduce_sum(tf.abs(boxes), axis=1), tf.bool)
-    boxes = tf.boolean_mask(boxes, non_zeros, name=name)
-    return boxes, non_zeros
-
-def batch_pack_graph(x, counts, num_rows):
-    """Picks different number of values from each row
-    in x depending on the values in counts.
-    """
-    outputs = []
-    for i in range(num_rows):
-        outputs.append(x[i, :counts[i]])
-    return tf.concat(outputs, axis=0)
-    
     

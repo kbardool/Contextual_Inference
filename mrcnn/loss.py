@@ -31,9 +31,10 @@ def smooth_l1_loss(y_true, y_pred):
 def rpn_class_loss_graph(rpn_match, rpn_class_logits):
     """RPN anchor classifier loss.
 
-    rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
-               -1=negative, 0=neutral anchor.
-    rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for FG/BG.
+    rpn_match:          [batch, anchors, 1]. Anchor match type. 1=positive,
+                        -1=negative, 0=neutral anchor.
+                        
+    rpn_class_logits:   [batch, anchors, 2]. RPN classifier logits for FG/BG.
     """
     # Squeeze last dim to simplify
     rpn_match = tf.squeeze(rpn_match, -1)
@@ -44,7 +45,7 @@ def rpn_class_loss_graph(rpn_match, rpn_class_logits):
     indices = tf.where(K.not_equal(rpn_match, 0))
     # Pick rows that contribute to the loss and filter out the rest.
     rpn_class_logits = tf.gather_nd(rpn_class_logits, indices)
-    anchor_class = tf.gather_nd(anchor_class, indices)
+    anchor_class     = tf.gather_nd(anchor_class, indices)
     # Crossentropy loss
     loss = K.sparse_categorical_crossentropy(target=anchor_class,
                                              output=rpn_class_logits,
@@ -56,12 +57,16 @@ def rpn_class_loss_graph(rpn_match, rpn_class_logits):
 def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
     """Return the RPN bounding box loss graph.
 
-    config: the model config object.
-    target_bbox: [batch, max positive anchors, (dy, dx, log(dh), log(dw))].
-        Uses 0 padding to fill in unsed bbox deltas.
-    rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
-               -1=negative, 0=neutral anchor.
-    rpn_bbox: [batch, anchors, (dy, dx, log(dh), log(dw))]
+    config:             the model config object.
+    
+    target_bbox:        [batch, max positive anchors, (dy, dx, log(dh), log(dw))].
+                        Uses 0 padding to fill in unsed bbox deltas.
+    
+    rpn_match:          [batch, anchors, 1]. Anchor match type. 1=positive,
+                        -1=negative, 0=neutral anchor.
+    
+    rpn_bbox:           [batch, anchors, (dy, dx, log(dh), log(dw))]
+    
     """
     # Positive anchors contribute to the loss, but negative and
     # neutral anchors (match value of 0 or -1) don't.
@@ -90,12 +95,12 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
                            active_class_ids):
     """Loss for the classifier head of Mask RCNN.
 
-    target_class_ids: [batch, num_rois]. Integer class IDs. Uses zero
-        padding to fill in the array.
-    pred_class_logits: [batch, num_rois, num_classes]
-    active_class_ids: [batch, num_classes]. Has a value of 1 for
-        classes that are in the dataset of the image, and 0
-        for classes that are not in the dataset.
+    target_class_ids:       [batch, num_rois]. Integer class IDs. Uses zero
+                            padding to fill in the array.
+    pred_class_logits:      [batch, num_rois, num_classes]
+    active_class_ids:       [batch, num_classes]. Has a value of 1 for
+                            classes that are in the dataset of the image, and 0
+                            for classes that are not in the dataset.
     """
     target_class_ids = tf.cast(target_class_ids, 'int64')
 
@@ -122,9 +127,10 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
 def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
     """Loss for Mask R-CNN bounding box refinement.
 
-    target_bbox: [batch, num_rois, (dy, dx, log(dh), log(dw))]
-    target_class_ids: [batch, num_rois]. Integer class IDs.
-    pred_bbox: [batch, num_rois, num_classes, (dy, dx, log(dh), log(dw))]
+    target_bbox:        [batch, num_rois, (dy, dx, log(dh), log(dw))]
+    target_class_ids:   [batch, num_rois]. Integer class IDs.
+    pred_bbox:          [batch, num_rois, num_classes, (dy, dx, log(dh), log(dw))]
+    
     """
     # Reshape to merge batch and roi dimensions for simplicity.
     target_class_ids = K.reshape(target_class_ids, (-1,))
@@ -154,11 +160,11 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
 def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
     """Mask binary cross-entropy loss for the masks head.
 
-    target_masks: [batch, num_rois, height, width].
-        A float32 tensor of values 0 or 1. Uses zero padding to fill array.
-    target_class_ids: [batch, num_rois]. Integer class IDs. Zero padded.
-    pred_masks: [batch, proposals, height, width, num_classes] float32 tensor
-                with values from 0 to 1.
+    target_masks:       [batch, num_rois, height, width].
+                        A float32 tensor of values 0 or 1. Uses zero padding to fill array.
+    target_class_ids:   [batch, num_rois]. Integer class IDs. Zero padded.
+    pred_masks:         [batch, proposals, height, width, num_classes] float32 tensor
+                        with values from 0 to 1.
     """
     # Reshape for simplicity. Merge first two dimensions into one.
     target_class_ids = K.reshape(target_class_ids, (-1,))

@@ -25,15 +25,20 @@ import mrcnn.utils as utils
 #  Visualization
 ############################################################
 
+##----------------------------------------------------------------------
+## display_instances
+##----------------------------------------------------------------------
 def display_images(images, titles=None, cols=4, cmap=None, norm=None,
                    interpolation=None):
-    """Display the given set of images, optionally with titles.
-    images: list or array of image tensors in HWC format.
-    titles: optional. A list of titles to display with each image.
-    cols: number of images per row
-    cmap: Optional. Color map to use. For example, "Blues".
-    norm: Optional. A Normalize instance to map values to colors.
-    interpolation: Optional. Image interporlation to use for display.
+    """
+    Display the given set of images, optionally with titles.
+    
+    images:             list or array of image tensors in HWC format.
+    titles:             optional. A list of titles to display with each image.
+    cols:               number of images per row
+    cmap:               Optional. Color map to use. For example, "Blues".
+    norm:               Optional. A Normalize instance to map values to colors.
+    interpolation:      Optional. Image interporlation to use for display.
     """
     titles = titles if titles is not None else [""] * len(images)
     rows = len(images) // cols + 1
@@ -67,22 +72,23 @@ def apply_mask(image, mask, color, alpha=0.5):
     """
     for c in range(3):
         image[:, :, c] = np.where(mask == 1,
-                                  image[:, :, c] *
-                                  (1 - alpha) + alpha * color[c] * 255,
+                                  image[:, :, c] * (1 - alpha) + alpha * color[c] * 255,
                                   image[:, :, c])
     return image
 
-
+##----------------------------------------------------------------------
+## display_instances
+##----------------------------------------------------------------------
 def display_instances(image, boxes, masks, class_ids, class_names,
                       scores=None, title="",
                       figsize=(16, 16), ax=None):
     """
-    boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
-    masks: [num_instances, height, width]
-    class_ids: [num_instances]
-    class_names: list of class names of the dataset
-    scores: (optional) confidence scores for each box
-    figsize: (optional) the size of the image.
+    boxes:                  [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
+    masks:                  [num_instances, height, width]
+    class_ids:              [num_instances]
+    class_names:            list of class names of the dataset
+    scores:                 (optional) confidence scores for each box
+    figsize:                (optional) the size of the image.
     """
     # Number of instances
     N = boxes.shape[0]
@@ -133,8 +139,7 @@ def display_instances(image, boxes, masks, class_ids, class_names,
 
         # Mask Polygon
         # Pad to ensure proper polygons for masks that touch image edges.
-        padded_mask = np.zeros(
-            (mask.shape[0] + 2, mask.shape[1] + 2), dtype=np.uint8)
+        padded_mask = np.zeros((mask.shape[0] + 2, mask.shape[1] + 2), dtype=np.uint8)
         padded_mask[1:-1, 1:-1] = mask
         contours = find_contours(padded_mask, 0.5)
         for verts in contours:
@@ -144,7 +149,9 @@ def display_instances(image, boxes, masks, class_ids, class_names,
             ax.add_patch(p)
     ax.imshow(masked_image.astype(np.uint8))
 
-
+##----------------------------------------------------------------------
+## draw_rois
+##----------------------------------------------------------------------
 def draw_rois(image, rois, refined_rois, mask, class_ids, class_names, limit=10):
     """
     anchors: [n, (y1, x1, y2, x2)] list of anchors in image coordinates.
@@ -219,6 +226,9 @@ def draw_box(image, box, color):
     return image
 
 
+##----------------------------------------------------------------------
+## display_top_masks
+##----------------------------------------------------------------------    
 def display_top_masks(image, mask, class_ids, class_names, limit=4):
     """Display the given image and the top few class masks."""
     to_display = []
@@ -241,7 +251,9 @@ def display_top_masks(image, mask, class_ids, class_names, limit=4):
         titles.append(class_names[class_id] if class_id != -1 else "-")
     display_images(to_display, titles=titles, cols=limit + 1, cmap="Blues_r")
 
-
+##----------------------------------------------------------------------
+## plot_precision_recall
+##----------------------------------------------------------------------
 def plot_precision_recall(AP, precisions, recalls):
     """Draw the precision-recall curve.
 
@@ -256,10 +268,13 @@ def plot_precision_recall(AP, precisions, recalls):
     ax.set_xlim(0, 1.1)
     _ = ax.plot(recalls, precisions)
 
-
+##----------------------------------------------------------------------
+## plot_overlaps
+##----------------------------------------------------------------------
 def plot_overlaps(gt_class_ids, pred_class_ids, pred_scores,
                   overlaps, class_names, threshold=0.5):
-    """Draw a grid showing how ground truth objects are classified.
+    """
+    Draw a grid showing how ground truth objects are classified.
     gt_class_ids: [N] int. Ground truth class IDs
     pred_class_id: [N] int. Predicted class IDs
     pred_scores: [N] float. The probability scores of predicted classes
@@ -295,22 +310,24 @@ def plot_overlaps(gt_class_ids, pred_class_ids, pred_scores,
     plt.xlabel("Ground Truth")
     plt.ylabel("Predictions")
 
-
+##----------------------------------------------------------------------
+## draw_boxes
+##----------------------------------------------------------------------
 def draw_boxes(image, boxes=None, refined_boxes=None,
                masks=None, captions=None, visibilities=None,
                title="", ax=None):
     """Draw bounding boxes and segmentation masks with differnt
     customizations.
 
-    boxes: [N, (y1, x1, y2, x2, class_id)] in image coordinates.
-    refined_boxes: Like boxes, but draw with solid lines to show
-        that they're the result of refining 'boxes'.
-    masks: [N, height, width]
-    captions: List of N titles to display on each box
-    visibilities: (optional) List of values of 0, 1, or 2. Determine how
-        prominant each bounding box should be.
-    title: An optional title to show over the image
-    ax: (optional) Matplotlib axis to draw on.
+    boxes:                  [N, (y1, x1, y2, x2, class_id)] in image coordinates.
+    refined_boxes:          Like boxes, but draw with solid lines to show
+                            that they're the result of refining 'boxes'.
+    masks:                  [N, height, width]
+    captions:               List of N titles to display on each box
+    visibilities:           (optional) List of values of 0, 1, or 2. Determine how
+                            prominant each bounding box should be.
+    title:                  An optional title to show over the image
+    ax:                     (optional) Matplotlib axis to draw on.
     """
     # Number of boxes
     assert boxes is not None or refined_boxes is not None
@@ -323,7 +340,7 @@ def draw_boxes(image, boxes=None, refined_boxes=None,
     # Generate random colors
     colors = random_colors(N)
 
-    # Show area outside image boundaries.
+    # Show area outside image boundaries.   
     margin = image.shape[0] // 10
     ax.set_ylim(image.shape[0] + margin, -margin)
     ax.set_xlim(-margin, image.shape[1] + margin)
@@ -375,7 +392,10 @@ def draw_boxes(image, boxes=None, refined_boxes=None,
             # If there are refined boxes, display captions on them
             if refined_boxes is not None:
                 y1, x1, y2, x2 = ry1, rx1, ry2, rx2
-            x = random.randint(x1, (x1 + x2) // 2)
+ 
+##             x = random.randint(x1, (x1 + x2) // 2)
+## replaced x1 with x1 // 1 to avoid failure in randint (13-03-2018)
+            x = random.randint(x1 //1 , (x1 + x2) // 2)
             ax.text(x1, y1, caption, size=11, verticalalignment='top',
                     color='w', backgroundcolor="none",
                     bbox={'facecolor': color, 'alpha': 0.5,
@@ -439,3 +459,37 @@ def display_weight_stats(model):
                 "{:+9.4f}".format(w.std()),
             ])
     display_table(table)
+
+from matplotlib import pyplot as plt 
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator, FormatStrFormatter
+
+def plot_gaussian( Z ):
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    
+    X = np.arange(0, 128, 1)
+    Y = np.arange(0, 128, 1)
+    X, Y = np.meshgrid(X, Y)
+    
+    pos = np.empty(X.shape+(2,))   # concatinate shape of x to make ( x.rows, x.cols, 2)
+    pos[:,:,0] = X;
+    pos[:,:,1] = Y;
+    surf = ax.plot_surface(X, Y, Z,cmap=cm.coolwarm, linewidth=0, antialiased=False)
+    
+    # # Customize the z axis.
+    ax.set_zlim(0.0 , 0.05)
+    ax.set_ylim(0,130)
+    ax.set_xlim(0,130)
+    ax.set_xlabel(' X axis')
+    ax.set_ylabel(' Y axis')
+    ax.invert_yaxis()
+    ax.view_init(elev=140, azim=-88)
+    # ax.zaxis.set_major_locator(LinearLocator(10))
+    # ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+
+    # Add a color bar which maps values to colors.
+    fig.colorbar(surf, shrink=0.5, aspect=5)
+
+    plt.show()
