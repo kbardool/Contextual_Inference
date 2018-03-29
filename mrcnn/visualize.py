@@ -465,10 +465,11 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 
-def plot_gaussian( Z ):
+def plot_gaussian( Z, title = 'My figure' ):
     fig = plt.figure()
+    fig.suptitle(title, fontsize =12 )
     ax = fig.gca(projection='3d')
-    
+    fig.set_figheight(5)
     X = np.arange(0, 128, 1)
     Y = np.arange(0, 128, 1)
     X, Y = np.meshgrid(X, Y)

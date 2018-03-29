@@ -21,23 +21,23 @@ import logging
 from collections import OrderedDict
 import numpy as np
 import scipy.misc
-import tensorflow as tf
+import tensorflow    as tf
 import keras
-import keras.backend as K
-import keras.layers as KL
+import keras.backend as KB
+import keras.layers  as KL
 import keras.initializers as KI
-import keras.engine as KE
-import keras.models as KM
+import keras.engine  as KE
+import keras.models  as KM
 import pprint 
 
 # def get_layer_output(model, output_layer, model_input, training_flag = True):
-    # _mrcnn_class = K.function([model.input]+[K.learning_phase()],
+    # _mrcnn_class = KB.function([model.input]+[KB.learning_phase()],
                               # [model.layers[output_layer].output])
     # output = _mrcnn_class([model_input,training_flag])[0]                                
     # return output
     
     
-def get_layer_output(model, model_input, output_layer, training_flag = True):
+def get_layer_output_1(model, model_input, output_layer, training_flag = True):
     # print(type(training_flag))
 
     _my_input = model_input + [training_flag]
@@ -45,10 +45,22 @@ def get_layer_output(model, model_input, output_layer, training_flag = True):
     for ind, i in enumerate(_my_input):
         print('model_input {}  type {}'.format(ind, type(i)))
 
-    _mrcnn_class = K.function(model.input, [model.layers[output_layer].output])
+    _mrcnn_class = KB.function(model.input, [model.layers[output_layer].output])
     output = _mrcnn_class(_my_input)[0]                                
     return output
 
+def get_layer_output_2(model, model_input, training_flag = True):
+    _my_input = model_input 
+    for name,inp in zip(model.input_names, model_input):
+        print(' Input Name:  ({:24}) \t  Input shape: {}'.format(name, inp.shape))
+
+
+    _mrcnn_class = KB.function(model.input , model.output)
+#                               [model.keras_model.layers[output_layer].output])
+    output = _mrcnn_class(_my_input)                  
+    for name,out in zip (model.output_names,output):
+        print(' Output Name: ({:24}) \t  Output shape: {}'.format(name, out.shape))
+    return output    
 
     
 class MyCallback(keras.callbacks.Callback):

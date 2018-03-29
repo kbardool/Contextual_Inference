@@ -32,19 +32,20 @@ import keras.engine as KE
 import keras.models as KM
 sys.path.append('..')
 
-import mrcnn.utils as utils
-import mrcnn.loss  as loss
-from   mrcnn.datagen         import data_generator
-from   mrcnn.utils           import parse_image_meta
-from   mrcnn.utils           import parse_image_meta_graph
-from   mrcnn.rpn_model       import build_rpn_model
-from   mrcnn.resnet_model    import resnet_graph
-from   mrcnn.proposal_layer  import ProposalLayer
-from   mrcnn.detection_layer import DetectionTargetLayer  
-from   mrcnn.detection_layer import DetectionLayer  
-from   mrcnn.fpn_layers      import fpn_graph, fpn_classifier_graph, fpn_mask_graph
-from   mrcnn.callbacks       import MyCallback
-from   mrcnn.batchnorm_layer import BatchNorm
+import mrcnn.utils            as utils
+import mrcnn.loss             as loss
+from   mrcnn.datagen          import data_generator
+from   mrcnn.utils            import parse_image_meta
+from   mrcnn.utils            import parse_image_meta_graph
+from   mrcnn.rpn_model        import build_rpn_model
+from   mrcnn.resnet_model     import resnet_graph
+from   mrcnn.pc_layer         import PCNLayer, PCILayer
+from   mrcnn.proposal_layer   import ProposalLayer
+from   mrcnn.detect_tgt_layer import DetectionTargetLayer  
+from   mrcnn.detect_layer     import DetectionLayer  
+from   mrcnn.fpn_layers       import fpn_graph, fpn_classifier_graph, fpn_mask_graph
+from   mrcnn.callbacks        import MyCallback
+from   mrcnn.batchnorm_layer  import BatchNorm
 
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 from distutils.version import LooseVersion
@@ -166,7 +167,7 @@ class MaskRCNN():
             # Normalize coordinates
             h, w = K.shape(input_image)[1], K.shape(input_image)[2]
             image_scale = K.cast(K.stack([h, w, h, w], axis=0), tf.float32)
-            gt_boxes = KL.Lambda(lambda x: x / image_scale)(input_gt_boxes)
+            input_normlzd_gt_boxes = KL.Lambda(lambda x: x / image_scale)(input_gt_boxes)
             
             # 3. GT Masks (zero padded)
             # [batch, height, width, MAX_GT_INSTANCES]
@@ -215,7 +216,8 @@ class MaskRCNN():
 
 
         #----------------------------------------------------------------------------        
-        # RPN Model
+        # RPN Model - returns a model which is applied on the feature maps produced by 
+        # the resnet backbone
         #----------------------------------------------------------------------------                
         rpn = build_rpn_model(config.RPN_ANCHOR_STRIDE, len(config.RPN_ANCHOR_RATIOS), 256)
 
@@ -255,7 +257,7 @@ class MaskRCNN():
         #----------------------------------------------------------------------------                
         # Proposal Layer
         #----------------------------------------------------------------------------                
-        # Generate proposals
+        # Generate proposals from bboxes and classes genrated by the RPN model
         # Proposals are [batch, N, (y1, x1, y2, x2)] in normalized coordinates
         # and zero padded.
         #
@@ -275,12 +277,11 @@ class MaskRCNN():
         #----------------------------------------------------------------------------                
         if mode == "training":
             # Class ID mask to mark class IDs supported by the dataset the image came from.
-            _, _, _, active_class_ids = KL.Lambda(lambda x:  parse_image_meta_graph(x),
-                                                  mask=[None, None, None, None])(input_image_meta)
+            _, _, _, active_class_ids = KL.Lambda(lambda x:  parse_image_meta_graph(x), mask=[None, None, None, None])(input_image_meta)
 
             if not config.USE_RPN_ROIS:
                 # Ignore predicted ROIs and use ROIs provided as an input.
-                input_rois = KL.Input(shape=[config.POST_NMS_ROIS_TRAINING, 4], name="input_roi", dtype=np.int32)
+                input_rois  = KL.Input(shape=[config.POST_NMS_ROIS_TRAINING, 4], name="input_roi", dtype=np.int32)
                 # Normalize coordinates to 0-1 range.
                 target_rois = KL.Lambda(lambda x: K.cast(x, tf.float32) / image_scale[:4])(input_rois)
             else:
@@ -288,13 +289,15 @@ class MaskRCNN():
             
             #------------------------------------------------------------------------
             # Generate detection targets
+            #    RPN --> ROIs
+            #    target_* returned from layer are processed versions of gt_* 
             #    Subsamples proposals and generates target outputs for training
-            #    Note that proposal class IDs, gt_boxes, and gt_masks are zero padded. 
+            #    Note that proposal class IDs, input_normalized_gt_boxes, and gt_masks are zero padded. 
             #    Equally, returned rois and targets are zero padded.
             #------------------------------------------------------------------------
             rois, target_class_ids, target_bbox, target_mask = \
-                DetectionTargetLayer(config, name="proposal_targets")([
-                    target_rois, input_gt_class_ids, gt_boxes, input_gt_masks])
+                DetectionTargetLayer(config, name="proposal_targets") \
+                                    ([target_rois, input_gt_class_ids, input_normlzd_gt_boxes, input_gt_masks])
                     
             #------------------------------------------------------------------------
             # Network Heads
@@ -309,7 +312,14 @@ class MaskRCNN():
             # TODO: clean up (use tf.identify if necessary)
             output_rois = KL.Lambda(lambda x: x * 1, name="output_rois")(rois)
 
+            # Once we are comfortable with the results we can remove additional outputs from here.....
+            pcn_gaussian, gt_gaussian, pcn_tensor, pcn_cls_cnt, gt_tensor, gt_cls_cnt = \
+                 PCNLayer(config, name = 'cntxt_layer' )\
+                         ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])
+                         
+            #------------------------------------------------------------------------
             # Losses
+            #------------------------------------------------------------------------
             rpn_class_loss = KL.Lambda(lambda x: loss.rpn_class_loss_graph(*x), name="rpn_class_loss")(
                 [input_rpn_match, rpn_class_logits])
             
@@ -332,9 +342,11 @@ class MaskRCNN():
                 inputs.append(input_rois)
 
             outputs = [output_rois,
-                       rpn_class_logits  , rpn_rois     , rpn_class  , rpn_bbox,
+                       pcn_gaussian      , gt_gaussian  , pcn_tensor   , pcn_cls_cnt, gt_tensor , gt_cls_cnt,
+                       rpn_class_logits  , rpn_rois     , rpn_class  , rpn_bbox  ,
                        mrcnn_class_logits, mrcnn_class  , mrcnn_bbox , mrcnn_mask,
-                       rpn_class_loss    , rpn_bbox_loss, class_loss , bbox_loss , mask_loss]
+                       rpn_class_loss    , rpn_bbox_loss, class_loss , bbox_loss , mask_loss
+                       ]
         
             # model = KM.Model(inputs, outputs, name='mask_rcnn')
         
@@ -367,9 +379,14 @@ class MaskRCNN():
                                         config.IMAGE_SHAPE,
                                         config.MASK_POOL_SIZE,
                                         config.NUM_CLASSES)
-                                              
+
+            # The PCI Layer prepares the input for the FCN layer ..
+            pcn_gaussian, pcn_tensor, pcn_cls_cnt = \
+                 PCILayer(config, name = 'cntxt_layer' ) ([mrcnn_class, mrcnn_bbox, detections])
+                                        
             inputs  = [ input_image, input_image_meta]
             outputs = [ detections,
+                        pcn_gaussian,
                         rpn_rois, rpn_class, rpn_bbox,
                         mrcnn_class, mrcnn_bbox, mrcnn_mask ]
             # model = KM.Model( inputs, outputs,  name='mask_rcnn')                           
@@ -432,7 +449,7 @@ class MaskRCNN():
         if h5py is None:
             raise ImportError('`load_weights` requires h5py.')
         
-        log('load_weights:      from: {}'.format(filepath))
+        log('load_weights: Loading weights from: {}'.format(filepath))
         f = h5py.File(filepath, mode='r')
         if 'layer_names' not in f.attrs and 'model_weights' in f:
             f = f['model_weights']
@@ -453,8 +470,10 @@ class MaskRCNN():
             topology.load_weights_from_hdf5_group(f, layers)
         if hasattr(f, 'close'):
             f.close()
+        log('load_weights: Log directory set to : {}'.format(filepath))
         # Update the log directory
         self.set_log_dir(filepath)
+
 
     def set_log_dir(self, model_path=None):
         """Sets the model log directory and epoch counter.
@@ -774,7 +793,7 @@ class MaskRCNN():
         # if TEST_MODE == "training":
         #     model_in = [molded_images, image_metas,
         #                 target_rpn_match, target_rpn_bbox,
-        #                 gt_boxes, gt_masks]
+        #                 input_normalized_gt_boxes, gt_masks]
         #     if not config.USE_RPN_ROIS:
         #         model_in.append(target_rois)
         #     if model.uses_learning_phase and not isinstance(K.learning_phase(), int):
@@ -996,8 +1015,9 @@ class MaskRCNN():
         # Train
         log("Last epoch completed : {} ".format(self.epoch))
         log("Starting from epoch {} for {} epochs. LR={}".format(self.epoch, epochs_to_run, learning_rate))
-        log("Steps per epoch:   {} ".format(self.config.STEPS_PER_EPOCH))
-        log("Checkpoint Folder: {}".format(self.checkpoint_path))
+        log("Steps per epoch:    {} ".format(steps_per_epoch))
+        log("Batchsize      :    {} ".format(batch_size))
+        log("Checkpoint Folder:  {} ".format(self.checkpoint_path))
         epochs = self.epoch + epochs_to_run
         
         from tensorflow.python.platform import gfile
@@ -1069,4 +1089,45 @@ class MaskRCNN():
 
             print('Final : self.epoch {}   epochs {}'.format(self.epoch, epochs))
         # end if (else)
-                
+
+
+    def compile_only(self, 
+              learning_rate, 
+              layers):
+        """Compile the model.
+        learning_rate:  The learning rate to train with
+        
+        layers:         Allows selecting wich layers to train. It can be:
+                        - A regular expression to match layer names to train
+                        - One of these predefined values:
+                        heads: The RPN, classifier and mask heads of the network
+                        all: All the layers
+                        3+: Train Resnet stage 3 and up
+                        4+: Train Resnet stage 4 and up
+                        5+: Train Resnet stage 5 and up
+        """
+        # Pre-defined layer regular expressions
+        layer_regex = {
+            # all layers but the backbone
+            "heads": r"(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)",
+            # From a specific Resnet stage and up
+            "3+": r"(res3.*)|(bn3.*)|(res4.*)|(bn4.*)|(res5.*)|(bn5.*)|(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)",
+            "4+": r"(res4.*)|(bn4.*)|(res5.*)|(bn5.*)|(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)",
+            "5+": r"(res5.*)|(bn5.*)|(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)",
+            # All layers
+            "all": ".*",
+        }
+        if layers in layer_regex.keys():
+            layers = layer_regex[layers]
+            
+        # Train
+        log("Compile with learing rate; {} Learning Moementum: {} ".format(learning_rate,self.config.LEARNING_MOMENTUM))
+        log("Checkpoint Folder:  {} ".format(self.checkpoint_path))
+        
+        self.set_trainable(layers)            
+        self.compile(learning_rate, self.config.LEARNING_MOMENTUM)        
+        
+        out_labels = self.keras_model._get_deduped_metrics_names()
+        callback_metrics = out_labels + ['val_' + n for n in out_labels]
+        print('Callback_metrics are:  ( val+_get_deduped_metrics_names() )\n' ,callback_metrics)
+        return
