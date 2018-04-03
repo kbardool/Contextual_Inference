@@ -17,6 +17,8 @@ import cv2
 from   mrcnn.config import Config
 from   mrcnn.dataset import Dataset
 import mrcnn.utils as utils
+import pprint
+pp = pprint.PrettyPrinter(indent=2, width=100)
 
 
 class ShapesConfig(Config):
@@ -108,20 +110,24 @@ class ShapesDataset(Dataset):
         """Generate instance masks for shapes of the given image ID.
         """
         # print(' Loading shapes obj mask infofor image_id : ',image_id)
-        info = self.image_info[image_id]
+        info   = self.image_info[image_id]
         shapes = info['shapes']
-        count = len(shapes)
-        mask = np.zeros([info['height'], info['width'], count], dtype=np.uint8)
+        # print('\n Load Mask information (shape, (color rgb), (x_ctr, y_ctr, size) ): ')
+        # pp.pprint(info['shapes'])
+        count  = len(shapes)
+        mask   = np.zeros([info['height'], info['width'], count], dtype=np.uint8)
+        
         # print(' Shapes obj mask shape is :',mask.shape)
         for i, (shape, _, dims) in enumerate(info['shapes']):
-            mask[:, :, i:i + 1] = self.draw_shape(mask[:, :, i:i + 1].copy(),
-                                                  shape, dims, 1)
+            mask[:, :, i:i + 1] = self.draw_shape(mask[:, :, i:i + 1].copy(), shape, dims, 1)
+        
         # Handle occlusions
         occlusion = np.logical_not(mask[:, :, -1]).astype(np.uint8)
         for i in range(count - 2, -1, -1):
             mask[:, :, i] = mask[:, :, i] * occlusion
             occlusion = np.logical_and(
                 occlusion, np.logical_not(mask[:, :, i]))
+        
         # Map class names to class IDs.
         class_ids = np.array([self.class_names.index(s[0]) for s in shapes])
         return mask, class_ids.astype(np.int32)

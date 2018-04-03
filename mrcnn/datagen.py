@@ -312,12 +312,14 @@ def build_rpn_targets(image_shape, anchors, gt_class_ids, gt_boxes, config):
     """
     # RPN Match: 1 = positive anchor, -1 = negative anchor, 0 = neutral
     rpn_match = np.zeros([anchors.shape[0]], dtype=np.int32)
+    
     # RPN bounding boxes: [max anchors per image, (dy, dx, log(dh), log(dw))]
     rpn_bbox = np.zeros((config.RPN_TRAIN_ANCHORS_PER_IMAGE, 4))
 
     # Handle COCO crowds
     # A crowd box in COCO is a bounding box around several instances. Exclude
     # them from training. A crowd box is given a negative class ID.
+    
     crowd_ix = np.where(gt_class_ids < 0)[0]
     if crowd_ix.shape[0] > 0:
         # Filter out crowds from ground truth class IDs and boxes
@@ -336,25 +338,30 @@ def build_rpn_targets(image_shape, anchors, gt_class_ids, gt_boxes, config):
     # Compute overlaps [num_anchors, num_gt_boxes]
     overlaps = utils.compute_overlaps(anchors, gt_boxes)
 
-    # Match anchors to GT Boxes
+    #--------------------------------------------------------------------------
+    ## Match anchors to GT Boxes
+    #
     # If an anchor overlaps a GT box with IoU >= 0.7 then it's positive.
     # If an anchor overlaps a GT box with IoU < 0.3 then it's negative.
     # Neutral anchors are those that don't match the conditions above,
     # and they don't influence the loss function.
     # However, don't keep any GT box unmatched (rare, but happens). Instead,
     # match it to the closest anchor (even if its max IoU is < 0.3).
-    #
+    #--------------------------------------------------------------------------
     
     # 1. Set negative anchors first. They get overwritten below if a GT box is
     # matched to them. Skip boxes in crowd areas.
+ 
     anchor_iou_argmax = np.argmax(overlaps, axis=1)
     anchor_iou_max = overlaps[np.arange(overlaps.shape[0]), anchor_iou_argmax]
     rpn_match[(anchor_iou_max < 0.3) & (no_crowd_bool)] = -1
     
     # 2. Set an anchor for each GT box (regardless of IoU value).
     # TODO: If multiple anchors have the same IoU match all of them
+    
     gt_iou_argmax = np.argmax(overlaps, axis=0)
     rpn_match[gt_iou_argmax] = 1
+    
     # 3. Set anchors with high overlap as positive.
     rpn_match[anchor_iou_max >= 0.7] = 1
 
@@ -379,6 +386,8 @@ def build_rpn_targets(image_shape, anchors, gt_class_ids, gt_boxes, config):
     # to match the corresponding GT boxes.
     ids = np.where(rpn_match == 1)[0]
     ix = 0  # index into rpn_bbox
+    
+
     # TODO: use box_refinment() rather than duplicating the code here
     for i, a in zip(ids, anchors[ids]):
         # Closest gt box (it might have IoU < 0.7)
@@ -413,7 +422,7 @@ def build_rpn_targets(image_shape, anchors, gt_class_ids, gt_boxes, config):
 ## GENERATE_RANDOM_ROIS
 ##----------------------------------------------------------------------
 def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
-    """
+    '''
     Generates ROI proposals similar to what a region proposal network
     would generate.
 
@@ -427,7 +436,7 @@ def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
     Returns:
     --------    
     rois:                   [count, (y1, x1, y2, x2)] ROI boxes in pixels.
-    """
+    '''
     # placeholder
     rois = np.zeros((count, 4), dtype=np.int32)
 
@@ -495,7 +504,7 @@ def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
 ##----------------------------------------------------------------------
 def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
                    batch_size=1, detection_targets=False):
-    """
+    '''
     A generator that returns images and corresponding target class ids,
     bounding box deltas, and masks.
     
@@ -506,8 +515,9 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
     shuffle:                If True, shuffles the samples before every epoch
     augment:                If True, applies image augmentation to images (currently only
                             horizontal flips are supported)
+                            
     random_rois:            If > 0 then generate proposals to be used to train the
-                            network classifier and mask heads. Useful if training
+                            network classifier and mask heads. Useful if training   
                             the Mask RCNN part without the RPN.
     
     batch_size:             How many images to return in each call
@@ -519,22 +529,24 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
     Returns:                A Python generator. Upon calling next() on it, the
     --------                generator returns two lists, [inputs] and [outputs]. The containtes
                             of the lists differs depending on the received arguments:
-    [Inputs] list:
-    --------------
+    [Inputs] return list:
+    --------------------
   0 batch_images:           [batch_sz, H, W, C]                                                [1, 128,128,3]
   1 batch_image_meta:       [batch_sz, size of image meta]                                     [1,  12]
+  
   2 batch_rpn_match:        [batch_sz, N] Integer (1=positive anchor, -1=negative, 0=neutral)  [1,4092, 1]
   3 batch_rpn_bbox:         [batch_sz, N, (dy, dx, log(dh), log(dw))] Anchor bbox deltas.      [1, 256, 4]
+  
   4 batch_gt_class_ids:     [batch_sz, MAX_GT_INSTANCES] Integer class IDs                     [1, 100]
   5 batch_gt_boxes:         [batch_sz, MAX_GT_INSTANCES, (y1, x1, y2, x2)]                     [1, 100, 4]
   6 batch_gt_masks:         [batch_sz, height, width, MAX_GT_INSTANCES]. The height and width  [1,  56, 56, 100]
                             are those of the image unless use_mini_mask is True, in which
                             case they are defined in MINI_MASK_SHAPE.
                             
-  >> if random_rois <> 0  folloing generated by generate_random_rois  
+  >> if random_rois <> 0 , the  following is generated by GENERATE_RANDOM_ROIS  
     batch_rpn_roi           [batch_size, #random_rois, (y1, x1, y2, x2)] ROI boxes in pixels.
     
-  >> if random_rois <> 0 AND detection_targets == True  following generated by build_detection_targets
+  >> if random_rois <> 0 AND detection_targets == True  following generated by BUILD_DETECTION_TARGETS
     batch_roi               [batch_sz, TRAIN_ROIS_PER_IMAGE, (y1, x1, y2, x2)]
     batch_mrcnn_class_ids   [batch_sz, TRAIN_ROIS_PER_IMAGE]. Integer class IDs.
     batch_mrcnn_bbox        [batch_sz, TRAIN_ROIS_PER_IMAGE, NUM_CLASSES, (y, x, log(h), log(w))]. 
@@ -556,7 +568,7 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
         - generate random rois (as rpn_rois instead of using those generated by the RPN network (normally not used)
         - at to batch being created 
         - If batch is complete, build [Inputs] list
-    """
+    '''
     b = 0  # batch item index
     image_index = -1
     image_ids = np.copy(dataset.image_ids)
@@ -564,28 +576,31 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
 
     # Anchors
     # [anchor_count, (y1, x1, y2, x2)]
-    anchors = utils.generate_pyramid_anchors(config.RPN_ANCHOR_SCALES,
-                                             config.RPN_ANCHOR_RATIOS,
-                                             config.BACKBONE_SHAPES,
-                                             config.BACKBONE_STRIDES,
-                                             config.RPN_ANCHOR_STRIDE)
+    anchors = utils.generate_pyramid_anchors(config.RPN_ANCHOR_SCALES,     #  (8, 16, 32, 64, 128)
+                                             config.RPN_ANCHOR_RATIOS,     #  [0.5, 1, 2]
+                                             config.BACKBONE_SHAPES,        # [ 4X4, 8X8, 16X16, 32X32, 64X64]
+                                             config.BACKBONE_STRIDES,       # [   4,   8,    16,    32,    64]
+                                             config.RPN_ANCHOR_STRIDE)      #  1
 
     # Keras requires a generator to run indefinately.
     while True:
         try:
+            #-----------------------------------------------------------------------           
             # Increment index to pick next image. Shuffle if at the start of an epoch.
             #-----------------------------------------------------------------------            
             image_index = (image_index + 1) % len(image_ids)
             if shuffle and image_index == 0:
                 np.random.shuffle(image_ids)
 
+            #-----------------------------------------------------------------------           
             # Get GT bounding boxes and masks for image.
             #-----------------------------------------------------------------------            
             image_id = image_ids[image_index]
-            image, image_meta, gt_class_ids, gt_boxes, gt_masks = \
-                load_image_gt(dataset, config, image_id, augment=augment,
-                              use_mini_mask=config.USE_MINI_MASK)
+            image, image_meta, \
+            gt_class_ids, gt_boxes, gt_masks = \
+                load_image_gt(dataset, config, image_id, augment=augment, use_mini_mask=config.USE_MINI_MASK)
 
+            #-----------------------------------------------------------------------           
             # Skip images that have no instances. This can happen in cases
             # where we train on a subset of classes and the image doesn't
             # have any of the classes we care about.
@@ -593,26 +608,33 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
             if not np.any(gt_class_ids > 0):
                 continue
 
+            #-----------------------------------------------------------------------           
             # RPN Targets
             #-----------------------------------------------------------------------            
             rpn_match, rpn_bbox = build_rpn_targets(image.shape, anchors,
                                                     gt_class_ids, gt_boxes, config)
 
-            # Mask R-CNN Targets
+            #-----------------------------------------------------------------------           
+            # IF random_rois <> 0 then we generate random  proposals 
+            # (instead of using those generated by the RPN network) 
+            # Mask R-CNN roi Targets
             #-----------------------------------------------------------------------            
             if random_rois:
                 rpn_rois = generate_random_rois(image.shape, random_rois, gt_class_ids, gt_boxes)
                 if detection_targets:
                     rois, mrcnn_class_ids, mrcnn_bbox, mrcnn_mask =\
                         build_detection_targets(rpn_rois, gt_class_ids, gt_boxes, gt_masks, config)
-
+            
+            #-----------------------------------------------------------------------
             # Init batch arrays
             #-----------------------------------------------------------------------
             if b == 0:
+                batch_images      = np.zeros( (batch_size,) + image.shape, dtype=np.float32)
                 batch_image_meta  = np.zeros( (batch_size,) + image_meta.shape, dtype=image_meta.dtype)
+                
                 batch_rpn_match   = np.zeros( [batch_size, anchors.shape[0], 1], dtype=rpn_match.dtype)
                 batch_rpn_bbox    = np.zeros( [batch_size, config.RPN_TRAIN_ANCHORS_PER_IMAGE, 4], dtype=rpn_bbox.dtype)
-                batch_images      = np.zeros( (batch_size,) + image.shape, dtype=np.float32)
+
                 batch_gt_class_ids= np.zeros( (batch_size, config.MAX_GT_INSTANCES), dtype=np.int32)
                 batch_gt_boxes    = np.zeros( (batch_size, config.MAX_GT_INSTANCES, 4), dtype=np.int32)
                 
@@ -632,6 +654,7 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
                         batch_mrcnn_bbox      = np.zeros( (batch_size,) + mrcnn_bbox.shape, dtype=mrcnn_bbox.dtype)
                         batch_mrcnn_mask      = np.zeros( (batch_size,) + mrcnn_mask.shape, dtype=mrcnn_mask.dtype)
 
+            #-----------------------------------------------------------------------                        
             # If more instances than fits in the array, sub-sample from them.
             #-----------------------------------------------------------------------            
             if gt_boxes.shape[0] > config.MAX_GT_INSTANCES:
@@ -640,6 +663,7 @@ def data_generator(dataset, config, shuffle=True, augment=True, random_rois=0,
                 gt_boxes     = gt_boxes[ids]
                 gt_masks     = gt_masks[:, :, ids]
 
+            #-----------------------------------------------------------------------    
             # Add to batch
             #-----------------------------------------------------------------------            
             batch_image_meta[b]                           = image_meta

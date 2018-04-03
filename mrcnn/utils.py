@@ -80,7 +80,7 @@ def trim_zeros(x):
 
 
 ############################################################
-#  Data Formatting
+## Data Formatting
 ############################################################
 
 def compose_image_meta(image_id, image_shape, window, active_class_ids):
@@ -339,7 +339,6 @@ def apply_box_deltas(boxes, deltas):
 ############################################################
 #  Miscellenous Graph Functions
 ############################################################
-
 def trim_zeros_graph(boxes, name=None):
     """
     Often boxes are represented with matricies of shape [N, 4] and
@@ -365,7 +364,9 @@ def batch_pack_graph(x, counts, num_rows):
         outputs.append(x[i, :counts[i]])
     return tf.concat(outputs, axis=0)
     
-    
+##-----------------------------------------------------------------------------
+## box_refinement_graph
+##-----------------------------------------------------------------------------
 def box_refinement_graph(box, gt_box):
     """
     Compute refinement needed to transform box to gt_box.
@@ -423,7 +424,7 @@ def box_refinement(box, gt_box):
 
 
 ############################################################
-#  Masks
+## Masks
 ############################################################
 
 def resize_mask(mask, scale, padding):
@@ -440,7 +441,7 @@ def resize_mask(mask, scale, padding):
     mask = np.pad(mask, padding, mode='constant', constant_values=0)
     return mask
 
-
+    
 def minimize_mask(bbox, mask, mini_shape):
     """Resize masks to a smaller version to cut memory load.
     Mini-masks can then resized back to image scale using expand_masks()
@@ -462,7 +463,8 @@ def minimize_mask(bbox, mask, mini_shape):
 def expand_mask(bbox, mini_mask, image_shape):
     """Resizes mini masks back to image size. Reverses the change
     of minimize_mask().
-
+    calls scipy resize to resize mask to the height and width of its corresponding bbox, 
+    
     See inspect_data.ipynb notebook for more details.
     """
     mask = np.zeros(image_shape[:2] + (mini_mask.shape[-1],), dtype=bool)
@@ -502,52 +504,70 @@ def unmold_mask(mask, bbox, image_shape):
 
 
 ############################################################
-#  Anchors
+## Anchors
 ############################################################
 
-def generate_anchors(scales, ratios, shape, feature_stride, anchor_stride):
-    """
-    scales:         1D array of anchor sizes in pixels. Example: [32, 64, 128]
-    ratios:         1D array of anchor ratios of width/height. Example: [0.5, 1, 2]
-    shape:          [height, width] spatial shape of the feature map over which
-                    to generate anchors.
-    feature_stride: Stride of the feature map relative to the image in pixels.
-    anchor_stride:  Stride of anchors on the feature map. For example, if the
-                    value is 2 then generate anchors for every other feature map pixel.
-    Returns an  array of anchor box cooridnates in the frmat (y1,x1, y2,x2)
-    """
+def generate_anchors(scales, ratios, feature_shape, feature_stride, anchor_stride):
+    '''
+    scales:             1D array of anchor sizes in pixels. Example: [32, 64, 128]
+    ratios:             1D array of anchor ratios of width/height. Example: [0.5, 1, 2]
+    feature_shape:      [height, width] spatial shape of the feature map over which
+                        to generate anchors.
+    feature_stride:     Stride of the feature map relative to the image in pixels.
+    anchor_stride:      Stride of anchors on the feature map. For example, if the
+                        value is 2 then generate anchors for every other feature map pixel.
+    Returns
+    -------
+           Array of anchor box cooridnates in the format (y1,x1, y2,x2)
+    '''
+    
     # Get all combinations of scales and ratios
+    print('>>> generate_anchors()')
     scales, ratios = np.meshgrid(np.array(scales), np.array(ratios))
+    print(' meshgrid scales and ratios: ' ,scales.shape, ratios.shape)
     scales = scales.flatten()
     ratios = ratios.flatten()
-
+    print(' flattened meshgrid scales and ratios: ' ,scales.shape, ratios.shape)
+    
     # Enumerate heights and widths from scales and ratios
-    heights = scales / np.sqrt(ratios)
-    widths = scales * np.sqrt(ratios)
+    heights = scales / np.sqrt(ratios)  # 3x1
+    widths  = scales * np.sqrt(ratios)  # 3x1
+    print(' Heights ' ,heights, ' widths  ' ,widths)
+    
+    
+    # Enumerate x,y shifts in feature space - which depends on the feature stride
+    # for feature_stride 3 - shifts_x/y is 32
+    # 
+    shifts_y = np.arange(0, feature_shape[0], anchor_stride) * feature_stride
+    shifts_x = np.arange(0, feature_shape[1], anchor_stride) * feature_stride
+    print(' Strides shift_x, shift_y:\n ' ,shifts_x,'\n', shifts_y)
 
-    # Enumerate shifts in feature space
-    shifts_y = np.arange(0, shape[0], anchor_stride) * feature_stride
-    shifts_x = np.arange(0, shape[1], anchor_stride) * feature_stride
     shifts_x, shifts_y = np.meshgrid(shifts_x, shifts_y)
-
+    print(' meshgrid shift_x, shift_y: ' ,shifts_x.shape, shifts_y.shape)
+    
     # Enumerate combinations of shifts, widths, and heights
     # shape of each is [ shape[0] * shape[1] * size of (width/height)] 
-    box_widths, box_centers_x = np.meshgrid(widths, shifts_x)
+    box_widths , box_centers_x = np.meshgrid(widths, shifts_x)    
     box_heights, box_centers_y = np.meshgrid(heights, shifts_y)
-
-    # Reshape to get a list of (y, x) and a list of (h, w)
+    print(' box_widths  ', box_widths.shape ,' box_cneterss: ' , box_centers_x.shape)
+    print(' box_heights ', box_heights.shape,' box_cneters_y: ' , box_centers_y.shape)
     
+    # Reshape to get a list of (y, x) and a list of (h, w)
+    print(' box_centers stack   :' , np.stack([box_centers_y, box_centers_x], axis=2).shape)
+    print(' box_centers reshape :' , np.stack([box_centers_y, box_centers_x], axis=2).reshape([-1,2]).shape)
+    print(' box_sizes   stack   :' , np.stack([box_heights, box_widths], axis=2).shape)
+    print(' box_sizes   reshape :' , np.stack([box_heights, box_widths], axis=2).reshape([-1,2]).shape)
     box_centers = np.stack([box_centers_y, box_centers_x], axis=2).reshape([-1, 2])
-    box_sizes = np.stack([box_heights, box_widths], axis=2).reshape([-1, 2])
+    box_sizes   = np.stack([box_heights, box_widths], axis=2).reshape([-1, 2])
 
     # Convert to corner coordinates (y1, x1, y2, x2)
     boxes = np.concatenate([box_centers - 0.5 * box_sizes,
                             box_centers + 0.5 * box_sizes], axis=1)
+    print(' Anchor boxes shape is : ' ,boxes.shape)
     return boxes
 
 
-def generate_pyramid_anchors(scales, ratios, feature_shapes, feature_strides,
-                             anchor_stride):
+def generate_pyramid_anchors(anchor_scales, anchor_ratios, feature_shapes, feature_strides, anchor_stride):
     """Generate anchors at different levels of a feature pyramid. Each scale
     is associated with a level of the pyramid, but each ratio is used in
     all levels of the pyramid.
@@ -560,13 +580,17 @@ def generate_pyramid_anchors(scales, ratios, feature_shapes, feature_strides,
     # Anchors
     # [anchor_count, (y1, x1, y2, x2)]
     anchors = []
-    for i in range(len(scales)):
-        anchors.append(generate_anchors(scales[i], ratios, feature_shapes[i],
+    for i in range(len(anchor_scales)):
+        anchors.append(generate_anchors(anchor_scales[i], anchor_ratios, feature_shapes[i],
                                         feature_strides[i], anchor_stride))
     # anchors is a list of 5 np.arrays (one for each anchor scale)
     # concatenate these arrays on axis 0
-    return np.concatenate(anchors, axis=0)
-
+    
+    pp = np.concatenate(anchors, axis=0)
+    print(' soize of anchor arrya is :',pp.shape)
+   
+    return pp
+   
 
 ############################################################
 #  Miscellaneous
@@ -659,6 +683,22 @@ def compute_recall(pred_boxes, gt_boxes, iou):
     recall = len(set(matched_gt_boxes)) / gt_boxes.shape[0]
     return recall, positive_ids
 
+
+
+############################################################
+#  Utility Functions
+############################################################
+def log(text, array=None):
+    """Prints a text message. And, optionally, if a Numpy array is provided it
+    prints it's shape, min, and max values.
+    """
+    if array is not None:
+        text = text.ljust(25)
+        text += ("shape: {:20}  min: {:10.5f}  max: {:10.5f}".format(
+            str(array.shape),
+            array.min() if array.size else "",
+            array.max() if array.size else ""))
+    print(text)
 
 
     
