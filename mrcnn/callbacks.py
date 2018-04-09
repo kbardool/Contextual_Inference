@@ -43,19 +43,23 @@ def get_layer_output_1(model, model_input, output_layer, training_flag = True):
         print('model_input {}  type {}'.format(ind, type(i)))
 
     _mrcnn_class = KB.function(model.input, [model.layers[output_layer].output])
+    
     output = _mrcnn_class(_my_input)[0]                                
     return output
 
-def get_layer_output_2(model, model_input, training_flag = True):
-    _my_input = model_input 
-    for i, (name,inp) in enumerate(zip(model.input_names, model_input)):
-        print('Input {}:  ({:24}) \t  Input shape: {}'.format(i, name, inp.shape))
+def get_layer_output_2(model, model_input, training_flag = True, verbose = True):
+    if verbose: 
+        print('/* Inputs */')
+        for i, (name,inp) in enumerate(zip(model.input_names, model_input)):
+            print('Input {}:  ({:24}) \t  Input shape: {}'.format(i, name, inp.shape))
 
     _mrcnn_class = KB.function(model.input , model.output)
-
-    output = _mrcnn_class(_my_input)                  
-    for i, (name,out) in enumerate (zip (model.output_names,output)):
-        print('Output {}: ({:24}) \t  Output shape: {}'.format(i, name, out.shape))
+    output = _mrcnn_class(model_input)                  
+    
+    if verbose:
+        print('\n/* Outputs */')    
+        for i, (name,out) in enumerate (zip (model.output_names,output)):
+            print('Output {}: ({:24}) \t  Output shape: {}'.format(i, name, out.shape))
     return output    
 
     

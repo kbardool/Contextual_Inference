@@ -119,7 +119,7 @@ class ProposalLayer(KE.Layer):
         self.proposal_count = proposal_count
         self.nms_threshold = nms_threshold
         self.anchors = anchors.astype(np.float32)
-        print('Proposal Layer init complete. Size of anchors: ',self.anchors.shape)
+        print('>>> Proposal Layer init complete. Size of anchors: ',self.anchors.shape)
         
 
     # Layer logic resides here. 
@@ -155,11 +155,14 @@ class ProposalLayer(KE.Layer):
         deltas  = utils.batch_slice([deltas, ix], lambda x, y: tf.gather(x, y), self.config.IMAGES_PER_GPU)
         anchors = utils.batch_slice(         ix , lambda x   : tf.gather(anchors, x), self.config.IMAGES_PER_GPU, 
                                   names=["pre_nms_anchors"])
-
         # Apply deltas to anchors to get refined anchors.
         # [batch, N, (y1, x1, y2, x2)]
         boxes = utils.batch_slice([anchors, deltas],lambda x, y: apply_box_deltas_graph(x, y),self.config.IMAGES_PER_GPU,
                                   names=["refined_anchors"])
+        print('     Scores : ' , scores.shape)
+        print('     Deltas : ' , deltas.shape)
+        print('     Anchors: ' , anchors.shape)
+        print('     Boxes shape / type after processing: ', boxes.shape, type(boxes))
 
         # Clip to image boundaries. [batch, N, (y1, x1, y2, x2)]
         height, width = self.config.IMAGE_SHAPE[:2]

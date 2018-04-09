@@ -79,9 +79,9 @@ def trim_zeros(x):
     return x[~np.all(x == 0, axis=1)]
 
 
-############################################################
+###############################################################################
 ## Data Formatting
-############################################################
+###############################################################################
 
 def compose_image_meta(image_id, image_shape, window, active_class_ids):
     """Takes attributes of an image and puts them in one 1D array. Use
@@ -193,9 +193,9 @@ def resize_image(image, min_dim=None, max_dim=None, padding=False):
         window = (top_pad, left_pad, h + top_pad, w + left_pad)
     return image, window, scale, padding
 	
-############################################################
-#  Bounding Boxes
-############################################################
+###############################################################################
+##  Bounding Boxes
+###############################################################################
 
 def extract_bboxes(mask):
     """Compute bounding boxes from masks.
@@ -241,7 +241,7 @@ def compute_iou(box, boxes, box_area, boxes_area):
     x2 = np.minimum(box[3], boxes[:, 3])
     intersection = np.maximum(x2 - x1, 0) * np.maximum(y2 - y1, 0)
     union = box_area + boxes_area[:] - intersection[:]
-    iou = intersection / union
+    iou = intersection / union  
     return iou
 
 
@@ -336,9 +336,11 @@ def apply_box_deltas(boxes, deltas):
     
     return np.stack([y1, x1, y2, x2], axis=1)
 
-############################################################
-#  Miscellenous Graph Functions
-############################################################
+
+###############################################################################
+##  Miscellenous Graph Functions
+###############################################################################
+
 def trim_zeros_graph(boxes, name=None):
     """
     Often boxes are represented with matricies of shape [N, 4] and
@@ -364,9 +366,9 @@ def batch_pack_graph(x, counts, num_rows):
         outputs.append(x[i, :counts[i]])
     return tf.concat(outputs, axis=0)
     
-##-----------------------------------------------------------------------------
+###############################################################################
 ## box_refinement_graph
-##-----------------------------------------------------------------------------
+###############################################################################
 def box_refinement_graph(box, gt_box):
     """
     Compute refinement needed to transform box to gt_box.
@@ -423,9 +425,9 @@ def box_refinement(box, gt_box):
     return np.stack([dy, dx, dh, dw], axis=1)
 
 
-############################################################
+###############################################################################
 ## Masks
-############################################################
+###############################################################################
 
 def resize_mask(mask, scale, padding):
     """Resizes a mask using the given scale and padding.
@@ -503,9 +505,9 @@ def unmold_mask(mask, bbox, image_shape):
     return full_mask
 
 
-############################################################
-## Anchors
-############################################################
+###############################################################################
+## Pyramid Anchors
+###############################################################################
 
 def generate_anchors(scales, ratios, feature_shape, feature_stride, anchor_stride):
     '''
@@ -522,17 +524,19 @@ def generate_anchors(scales, ratios, feature_shape, feature_stride, anchor_strid
     '''
     
     # Get all combinations of scales and ratios
-    print('>>> generate_anchors()')
+    # print('>>> generate_anchors()')
     scales, ratios = np.meshgrid(np.array(scales), np.array(ratios))
-    print(' meshgrid scales and ratios: ' ,scales.shape, ratios.shape)
+    # print(' meshgrid scales and ratios: ' ,scales.shape, ratios.shape)
+    
     scales = scales.flatten()
     ratios = ratios.flatten()
-    print(' flattened meshgrid scales and ratios: ' ,scales.shape, ratios.shape)
     
     # Enumerate heights and widths from scales and ratios
     heights = scales / np.sqrt(ratios)  # 3x1
     widths  = scales * np.sqrt(ratios)  # 3x1
-    print(' Heights ' ,heights, ' widths  ' ,widths)
+
+    # print(' flattened meshgrid scales and ratios: ' ,scales.shape, ratios.shape)    
+    # print(' Heights ' ,heights, ' widths  ' ,widths)
     
     
     # Enumerate x,y shifts in feature space - which depends on the feature stride
@@ -540,30 +544,30 @@ def generate_anchors(scales, ratios, feature_shape, feature_stride, anchor_strid
     # 
     shifts_y = np.arange(0, feature_shape[0], anchor_stride) * feature_stride
     shifts_x = np.arange(0, feature_shape[1], anchor_stride) * feature_stride
-    print(' Strides shift_x, shift_y:\n ' ,shifts_x,'\n', shifts_y)
+    # print(' Strides shift_x, shift_y:\n ' ,shifts_x,'\n', shifts_y)
 
     shifts_x, shifts_y = np.meshgrid(shifts_x, shifts_y)
-    print(' meshgrid shift_x, shift_y: ' ,shifts_x.shape, shifts_y.shape)
+    # print(' meshgrid shift_x, shift_y: ' ,shifts_x.shape, shifts_y.shape)
     
     # Enumerate combinations of shifts, widths, and heights
     # shape of each is [ shape[0] * shape[1] * size of (width/height)] 
     box_widths , box_centers_x = np.meshgrid(widths, shifts_x)    
     box_heights, box_centers_y = np.meshgrid(heights, shifts_y)
-    print(' box_widths  ', box_widths.shape ,' box_cneterss: ' , box_centers_x.shape)
-    print(' box_heights ', box_heights.shape,' box_cneters_y: ' , box_centers_y.shape)
     
     # Reshape to get a list of (y, x) and a list of (h, w)
-    print(' box_centers stack   :' , np.stack([box_centers_y, box_centers_x], axis=2).shape)
-    print(' box_centers reshape :' , np.stack([box_centers_y, box_centers_x], axis=2).reshape([-1,2]).shape)
-    print(' box_sizes   stack   :' , np.stack([box_heights, box_widths], axis=2).shape)
-    print(' box_sizes   reshape :' , np.stack([box_heights, box_widths], axis=2).reshape([-1,2]).shape)
+    # print(' box_widths  ', box_widths.shape ,' box_cneterss: ' , box_centers_x.shape)
+    # print(' box_heights ', box_heights.shape,' box_cneters_y: ' , box_centers_y.shape)
+    # print(' box_centers stack   :' , np.stack([box_centers_y, box_centers_x], axis=2).shape)
+    # print(' box_centers reshape :' , np.stack([box_centers_y, box_centers_x], axis=2).reshape([-1,2]).shape)
+    # print(' box_sizes   stack   :' , np.stack([box_heights, box_widths], axis=2).shape)
+    # print(' box_sizes   reshape :' , np.stack([box_heights, box_widths], axis=2).reshape([-1,2]).shape)
     box_centers = np.stack([box_centers_y, box_centers_x], axis=2).reshape([-1, 2])
     box_sizes   = np.stack([box_heights, box_widths], axis=2).reshape([-1, 2])
 
     # Convert to corner coordinates (y1, x1, y2, x2)
     boxes = np.concatenate([box_centers - 0.5 * box_sizes,
                             box_centers + 0.5 * box_sizes], axis=1)
-    print(' Anchor boxes shape is : ' ,boxes.shape)
+    # print(' Anchor boxes shape is : ' ,boxes.shape)
     return boxes
 
 
@@ -579,6 +583,7 @@ def generate_pyramid_anchors(anchor_scales, anchor_ratios, feature_shapes, featu
     """
     # Anchors
     # [anchor_count, (y1, x1, y2, x2)]
+    print('>>> Generate pyramid anchors ')
     anchors = []
     for i in range(len(anchor_scales)):
         anchors.append(generate_anchors(anchor_scales[i], anchor_ratios, feature_shapes[i],
@@ -587,16 +592,14 @@ def generate_pyramid_anchors(anchor_scales, anchor_ratios, feature_shapes, featu
     # concatenate these arrays on axis 0
     
     pp = np.concatenate(anchors, axis=0)
-    print(' soize of anchor arrya is :',pp.shape)
+    print('    Size of anchor array is :',pp.shape)
    
     return pp
    
 
-############################################################
-#  Miscellaneous
-############################################################
-
-
+###############################################################################
+##  Miscellaneous
+###############################################################################
 
 def compute_ap(gt_boxes, gt_class_ids,
                pred_boxes, pred_class_ids, pred_scores,

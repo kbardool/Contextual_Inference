@@ -22,10 +22,11 @@ pp = pprint.PrettyPrinter(indent=2, width=100)
 
 
 class ShapesConfig(Config):
-    """Configuration for training on the toy shapes dataset.
+    '''
+    Configuration for training on the toy shapes dataset.
     Derives from the base Config class and overrides values specific
     to the toy shapes dataset.
-    """
+    '''
     # Give the configuration a recognizable name
     NAME = "shapes"
 
@@ -57,19 +58,22 @@ class ShapesConfig(Config):
 
 
 class ShapesDataset(Dataset):
-    """Generates the shapes synthetic dataset. The dataset consists of simple
+    '''
+    Generates the shapes synthetic dataset. The dataset consists of simple
     shapes (triangles, squares, circles) placed randomly on a blank surface.
     The images are generated on the fly. No file access required.
-    """
+    '''
 
     def load_shapes(self, count, height, width):
-        """Generate the requested number of synthetic images.
+        '''
+        Generate the requested number of synthetic images.
         count: number of images to generate.
         height, width: the size of the generated images.
-        """
+        '''
+        
         # Add classes
-        self.add_class("shapes", 1, "square")
-        self.add_class("shapes", 2, "circle")
+        self.add_class("shapes", 1, "circle")  # used to be class 2
+        self.add_class("shapes", 2, "square")  # used to be class 1
         self.add_class("shapes", 3, "triangle")
 
         # Add images
@@ -83,11 +87,12 @@ class ShapesDataset(Dataset):
                            bg_color=bg_color, shapes=shapes)
 
     def load_image(self, image_id):
-        """Generate an image from the specs of the given image ID.
-        Typically this function loads the image from a file, but
-        in this case it generates the image on the fly from the
-        specs in image_info.
-        """
+        '''
+        Generate an image from the specs of the given image ID.
+        Typically this function loads the image from a file, but in this case it
+        generates the image on the fly from the specs in image_info.
+        '''
+        
         info = self.image_info[image_id]
         bg_color = np.array(info['bg_color']).reshape([1, 1, 3])
         
@@ -107,8 +112,9 @@ class ShapesDataset(Dataset):
             super(self.__class__).image_reference(self, image_id)
 
     def load_mask(self, image_id):
-        """Generate instance masks for shapes of the given image ID.
-        """
+        '''
+        Generate instance masks for shapes of the given image ID.
+        '''
         # print(' Loading shapes obj mask infofor image_id : ',image_id)
         info   = self.image_info[image_id]
         shapes = info['shapes']
@@ -170,10 +176,11 @@ class ShapesDataset(Dataset):
         return shape, color, (x, y, s)
 
     def random_image(self, height, width):
-        """Creates random specifications of an image with multiple shapes.
+        '''
+        Creates random specifications of an image with multiple shapes.
         Returns the background color of the image and a list of shape
         specifications that can be used to draw the image.
-        """
+        '''
         # Pick random background color
         bg_color = np.array([random.randint(0, 255) for _ in range(3)])
         # Generate a few random shapes and record their

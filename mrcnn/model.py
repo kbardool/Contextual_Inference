@@ -19,7 +19,7 @@ import re
 import logging
 from collections import OrderedDict
 import numpy as np
-
+import pprint
 import scipy.misc
 import tensorflow as tf
 # import tensorflow.train as TT
@@ -38,10 +38,10 @@ from   mrcnn.clsloss_layer    import CLSLossLayer
 from   mrcnn.datagen          import data_generator
 from   mrcnn.utils            import log
 from   mrcnn.utils            import parse_image_meta_graph, parse_image_meta
-from   mrcnn.FCN_model        import build_fcn_model
-from   mrcnn.rpn_model        import build_rpn_model
+from   mrcnn.FCN_model        import build_fcn_model, fcn_layer
+from   mrcnn.RPN_model        import build_rpn_model
 from   mrcnn.resnet_model     import resnet_graph
-from   mrcnn.pc_layer         import PCNLayer, PCILayer
+from   mrcnn.pcn_layer        import PCNLayer, PCILayer, PCNLayerTF
 from   mrcnn.proposal_layer   import ProposalLayer
 from   mrcnn.detect_tgt_layer import DetectionTargetLayer  
 from   mrcnn.detect_layer     import DetectionLayer  
@@ -53,7 +53,8 @@ from   mrcnn.batchnorm_layer  import BatchNorm
 from distutils.version import LooseVersion
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3.0")
 assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
-
+pp = pprint.PrettyPrinter(indent=2, width=100)
+tf.get_variable_scope().reuse_variables()
 
 ############################################################
 #  Code                                     moved to 
@@ -209,25 +210,25 @@ class MaskRCNN():
         # 
         # the final output is a list consisting of three tensors:
         #
-        # a1,..., a5: rpn_class_logits : Tensor("rpn_class_logits_11/concat:0", shape=(?, ?, 2), dtype=float32)
-        # b1,..., b5: rpn_probs        : Tensor("rpn_class_11/concat:0", shape=(?, ?, 2), dtype=float32)
-        # c1,..., c5: rpn_bbox         : Tensor("rpn_bbox_11/concat:0", shape=(?, ?, 4), dtype=float32)
+        # a1,..., a5: rpn_class_logits : Tensor("rpn_class_logits, shape=(?, ?, 2), dtype=float32)
+        # b1,..., b5: rpn_probs        : Tensor("rpn_class       , shape=(?, ?, 2), dtype=float32)
+        # c1,..., c5: rpn_bbox         : Tensor("rpn_bbox_11     , shape=(?, ?, 4), dtype=float32)
         #----------------------------------------------------------------------------                
         output_names = ["rpn_class_logits", "rpn_class", "rpn_bbox"]     
         outputs = list(zip(*layer_outputs))
         # concatinate the list of tensors in each group (logits, probs, bboxes)
                 
         outputs = [KL.Concatenate(axis=1, name=n)(list(o))  for o, n in zip(outputs, output_names)]
-        print(type(outputs))
+        print('>>> RPN Outputs ',  type(outputs))
         for i in outputs:
-            print(i, i.name)
+            print('     ', i.name)
         rpn_class_logits, rpn_class, rpn_bbox = outputs
 
         #----------------------------------------------------------------------------                
         ## Proposal Layer
         #----------------------------------------------------------------------------                
         # Generate proposals from bboxes and classes genrated by the RPN model
-        # Proposals are [batch, proposal_count, y1, x1, y2, x2] in NORMALIZED coordinates
+        # Proposals are [batch, proposal_count, 4 (y1, x1, y2, x2)] in NORMALIZED coordinates
         # and zero padded.
         #
         # proposal_count : number of proposal regions to generate:
@@ -251,9 +252,8 @@ class MaskRCNN():
             _, _, _, active_class_ids = KL.Lambda(lambda x:  parse_image_meta_graph(x), mask=[None, None, None, None])(input_image_meta)
 
             if not config.USE_RPN_ROIS:
-                # Ignore predicted ROIs and use ROIs provided as an input.
+                # Ignore predicted ROIs - Normalize and use ROIs provided as an input.
                 input_rois  = KL.Input(shape=[config.POST_NMS_ROIS_TRAINING, 4], name="input_roi", dtype=np.int32)
-                # Normalize coordinates to 0-1 range.
                 target_rois = KL.Lambda(lambda x: K.cast(x, tf.float32) / image_scale[:4])(input_rois)
             else:
                 target_rois = rpn_rois
@@ -291,13 +291,25 @@ class MaskRCNN():
             # Once we are comfortable with the results we can remove additional outputs from here.....
             pcn_gaussian, gt_gaussian, pcn_tensor, pcn_cls_cnt, gt_tensor, gt_cls_cnt = \
                  PCNLayer(config, name = 'cntxt_layer' )\
-                         ([mrcnn_class, mrcnn_bbox, mrcnn_mask, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])
+                         ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])            
+              
+            pcn_tensor2, pcn_cls_cnt2, gt_tensor2 , gt_cls_cnt2 = \
+                 PCNLayerTF(config, name = 'cntxt_layer_2' )\
+                         ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])
+            
+            print(' shape of pcn_tnesor2, cls_cnt2 ', pcn_tensor2.shape, pcn_cls_cnt2.shape)                         
+            print(' shape of gt_tnesor2, gt_cls_cnt2 ', gt_tensor2.shape, gt_cls_cnt2.shape)                         
             #------------------------------------------------------------------------
             ## FCN Network Head
             #------------------------------------------------------------------------
             print(' shape of pcn_gaussian is ', pcn_gaussian.shape)
-            FCN_model = build_fcn_model(self.config)
-            FCN_detections = FCN_model(pcn_gaussian)
+
+            
+            # FCN_model = build_fcn_model(self.config)           
+            # fcn_output = FCN_model(pcn_gaussian)
+
+            # fcn_input = KL.Lambda(lambda x: x * 1, name="fcn_output2")(pcn_gaussian)
+            # fcn_output = fcn_graph(pcn_gaussian, config)
         
             #------------------------------------------------------------------------
             ## Loss layer definitions
@@ -319,8 +331,8 @@ class MaskRCNN():
                             ([target_class_ids, mrcnn_class_logits, active_class_ids])
 
             # A layer style implmentation of class_loss . Should produce the same loss
-            class_loss_2   = CLSLossLayer(config, name='mrcnn_class_loss_2') \
-                            ([target_class_ids, mrcnn_class_logits,active_class_ids])
+            # class_loss_2   = CLSLossLayer(config, name='mrcnn_class_loss_2') \
+                            # ([target_class_ids, mrcnn_class_logits, active_class_ids])
             
             bbox_loss      = KL.Lambda(lambda x: loss.mrcnn_bbox_loss_graph(*x),       name="mrcnn_bbox_loss") \
                             ([target_bbox, target_class_ids, mrcnn_bbox])
@@ -342,12 +354,16 @@ class MaskRCNN():
                 inputs.append(input_rois)
 
             outputs = [output_rois,
-                       pcn_gaussian      , gt_gaussian  , pcn_tensor , pcn_cls_cnt, gt_tensor , gt_cls_cnt,
-                       rpn_class_logits  , rpn_rois     , rpn_class  , rpn_bbox   ,
-                       mrcnn_class_logits, mrcnn_class  , mrcnn_bbox , mrcnn_mask ,
-                       rpn_class_loss    ,
-                       rpn_bbox_loss     , rpn_bbox_loss_old,
-                       class_loss , bbox_loss  , mask_loss , class_loss_2
+                       target_class_ids  , target_bbox  , target_mask  ,
+                       pcn_gaussian      , gt_gaussian  , pcn_tensor   , pcn_cls_cnt, gt_tensor , gt_cls_cnt,
+                       pcn_tensor2       , pcn_cls_cnt2 , gt_tensor2   , gt_cls_cnt2,
+                       rpn_class_logits  , rpn_rois     , rpn_class    , rpn_bbox   ,
+                       mrcnn_class_logits, mrcnn_class  , mrcnn_bbox   , mrcnn_mask ,
+                       # fcn_output        ,
+                       
+                       rpn_class_loss    , rpn_bbox_loss     , rpn_bbox_loss_old,
+                       class_loss , bbox_loss  , mask_loss
+                       # , class_loss_2
                        ]
         
             # model = KM.Model(inputs, outputs, name='mask_rcnn')
@@ -356,7 +372,7 @@ class MaskRCNN():
 
         
         #----------------------------------------------------------------------------                
-        # Inference Mode
+        ## Inference Mode
         #----------------------------------------------------------------------------                
         else:
             # Network Heads
@@ -369,7 +385,6 @@ class MaskRCNN():
             # output is [batch, num_detections, (y1, x1, y2, x2, class_id, score)] in image coordinates
             detections = DetectionLayer(config, name="mrcnn_detection")(
                 [rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
-
             # Convert boxes to normalized coordinates
             # TODO: let DetectionLayer return normalized coordinates to avoid
             #       unnecessary conversions
@@ -405,6 +420,11 @@ class MaskRCNN():
         print('>>> MaskRCNN build complete')
         return model
 
+##-------------------------------------------------------------------------------------
+##-------------------------------------------------------------------------------------        
+##-------------------------------------------------------------------------------------
+##-------------------------------------------------------------------------------------        
+        
     def find_last(self):
         """
         Finds the last checkpoint file of the last trained model in the
@@ -1134,8 +1154,8 @@ class MaskRCNN():
         
         self.set_trainable(layers)            
         self.compile(learning_rate, self.config.LEARNING_MOMENTUM)        
-        
-        out_labels = self.keras_model._get_deduped_metrics_names()
-        callback_metrics = out_labels + ['val_' + n for n in out_labels]
-        print('Callback_metrics are:  ( val+_get_deduped_metrics_names() )\n' ,callback_metrics)
+        # out_labels = self.keras_model._get_deduped_metrics_names()
+        # callback_metrics = out_labels + ['val_' + n for n in out_labels]
+        # print('Callback_metrics are:  ( val + _get_deduped_metrics_names() )\n')
+        # pp.pprint(callback_metrics)
         return
