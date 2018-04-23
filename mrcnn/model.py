@@ -38,10 +38,11 @@ from   mrcnn.clsloss_layer    import CLSLossLayer
 from   mrcnn.datagen          import data_generator
 from   mrcnn.utils            import log
 from   mrcnn.utils            import parse_image_meta_graph, parse_image_meta
-from   mrcnn.FCN_model        import build_fcn_model, fcn_layer
+from   mrcnn.fcn_layer        import fcn_graph 
 from   mrcnn.RPN_model        import build_rpn_model
 from   mrcnn.resnet_model     import resnet_graph
-from   mrcnn.pcn_layer        import PCNLayer, PCILayer, PCNLayerTF
+from   mrcnn.pcn_layer        import PCNLayer, PCILayer
+from   mrcnn.pcn_layer_tf     import PCNLayerTF
 from   mrcnn.proposal_layer   import ProposalLayer
 from   mrcnn.detect_tgt_layer import DetectionTargetLayer  
 from   mrcnn.detect_layer     import DetectionLayer  
@@ -161,6 +162,7 @@ class MaskRCNN():
         # Returns a list of the last layers of each stage, 5 in total.
         # Don't create the thead (stage 5), so we pick the 4th item in the list.
         #----------------------------------------------------------------------------
+        
         Resnet_Layers      = resnet_graph(input_image, "resnet50", stage5=True)
         
         #----------------------------------------------------------------------------
@@ -219,7 +221,7 @@ class MaskRCNN():
         # concatinate the list of tensors in each group (logits, probs, bboxes)
                 
         outputs = [KL.Concatenate(axis=1, name=n)(list(o))  for o, n in zip(outputs, output_names)]
-        print('>>> RPN Outputs ',  type(outputs))
+        print('\n>>> RPN Outputs ',  type(outputs))
         for i in outputs:
             print('     ', i.name)
         rpn_class_logits, rpn_class, rpn_bbox = outputs
@@ -289,27 +291,54 @@ class MaskRCNN():
             ## PCN Layer to generate contextual feature maps using outputs from MRCNN 
             #------------------------------------------------------------------------            
             # Once we are comfortable with the results we can remove additional outputs from here.....
-            pcn_gaussian, gt_gaussian, pcn_tensor, pcn_cls_cnt, gt_tensor, gt_cls_cnt = \
-                 PCNLayer(config, name = 'cntxt_layer' )\
-                         ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])            
-              
-            pcn_tensor2, pcn_cls_cnt2, gt_tensor2 , gt_cls_cnt2 = \
-                 PCNLayerTF(config, name = 'cntxt_layer_2' )\
-                         ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])
+
+            # pred_gaussian, pred_scatter , pred_means , pred_covar , 
+            # gt_gaussian , gt_scatter  , gt_means  , gt_covar, \
             
-            print(' shape of pcn_tnesor2, cls_cnt2 ', pcn_tensor2.shape, pcn_cls_cnt2.shape)                         
-            print(' shape of gt_tnesor2, gt_cls_cnt2 ', gt_tensor2.shape, gt_cls_cnt2.shape)                         
+            pred_gaussian, pred_tensor  , pred_cls_cnt , \
+            gt_gaussian  , gt_tensor    , gt_cls_cnt \
+                =  PCNLayer(config, name = 'cntxt_layer' ) \
+                         ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])            
+
+                                   
+            # pred_scatter2, pred_gaussian2, means2, covar2 , \
+            # gt_scatter2 , gt_gaussian2 , gt_means2  , gt_covar2, \
+            pred_gaussian2 , pred_tensor2 , pred_cls_cnt2 , \
+            gt_gaussian2   , gt_tensor2   , gt_cls_cnt2 \
+                =  PCNLayerTF(config, name = 'cntxt_layer_2' ) \
+                         ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])
+
+
+            # print('<<<  shape of pred_gaussian : ', pred_gaussian.shape)                         
+            # print('<<<  shape of pred_scatter  : ', pred_scatter.shape )
+            # print('<<<  shape of pred_means    : ', pred_means.shape   )
+            # print('<<<  shape of pred_covar    : ', pred_covar.shape   )
+            # print('<<<  shape of pred_tensor   : ', pred_tensor.shape  )                         
+            # print('<<<  shape of pred_cls_cnt  : ', pred_cls_cnt.shape )                       
+            
+            # print('<<<  shape of gt_scatter    : ', gt_scatter.shape  )
+            # print('<<<  shape of gt_gaussian   : ', gt_gaussian.shape )
+            # print('<<<  shape of gt_means      : ', gt_means.shape    )
+            # print('<<<  shape of gt_covar      : ', gt_covar.shape    )           
+            # print('<<<  shape of gt_gaussian   : ', gt_gaussian.shape )
+            # print('<<<  shape of gt_tensor     : ', gt_tensor.shape   )                         
+            # print('<<<  shape of gt_cls_cnt    : ', gt_cls_cnt.shape  )                         
+            print('<<<  shape of gt_gaussian_2     ', gt_gaussian2.shape)  
+            print('<<<  shape of gt_tensor2        ', gt_tensor2.shape  )                         
+            print('<<<  shape of gt_cls_cnt2       ', gt_cls_cnt2.shape )                         
+
+                         
             #------------------------------------------------------------------------
             ## FCN Network Head
             #------------------------------------------------------------------------
-            print(' shape of pcn_gaussian is ', pcn_gaussian.shape)
-
             
             # FCN_model = build_fcn_model(self.config)           
-            # fcn_output = FCN_model(pcn_gaussian)
+            # fcn_block10, fcn_block11, fcn_block12,  fcn_output = FCN_model(pred_gaussian2)
 
-            # fcn_input = KL.Lambda(lambda x: x * 1, name="fcn_output2")(pcn_gaussian)
-            # fcn_output = fcn_graph(pcn_gaussian, config)
+            # fcn_input = KL.Lambda(lambda x: x * 1, name="fcn_input")(pred_gaussian2)
+
+            # fcn_0, fcn_1, fcn_2,  
+            fcn_output = fcn_graph(pred_gaussian2, config)
         
             #------------------------------------------------------------------------
             ## Loss layer definitions
@@ -317,15 +346,14 @@ class MaskRCNN():
             rpn_class_loss = KL.Lambda(lambda x: loss.rpn_class_loss_graph(*x),        name="rpn_class_loss")\
                             ([input_rpn_match, rpn_class_logits])
             
-            ## The following two losses are the same, the only difference is the method of 
-            ## calculating the Smooth L1 function, and should produce the same loss 
-            ## can remove the old one when we're happy 
+            # The following two losses are the same, the only difference is the method of 
+            # calculating the Smooth L1 function, and should produce the same loss 
+            # can remove the old one when we're happy 
             rpn_bbox_loss  = KL.Lambda(lambda x: loss.rpn_bbox_loss_graph(config, *x), name="rpn_bbox_loss")\
                             ([input_rpn_bbox , input_rpn_match, rpn_bbox])
             
-            rpn_bbox_loss_old = KL.Lambda(lambda x: loss.rpn_bbox_loss_graph_old(config, *x), name="rpn_bbox_loss_old") \
-                            ([input_rpn_bbox , input_rpn_match, rpn_bbox])
-            
+            # rpn_bbox_loss_old = KL.Lambda(lambda x: loss.rpn_bbox_loss_graph_old(config, *x), name="rpn_bbox_loss_old") \
+                            # ([input_rpn_bbox , input_rpn_match, rpn_bbox])
             
             class_loss     = KL.Lambda(lambda x: loss.mrcnn_class_loss_graph(*x),      name="mrcnn_class_loss")\
                             ([target_class_ids, mrcnn_class_logits, active_class_ids])
@@ -353,18 +381,29 @@ class MaskRCNN():
             if not config.USE_RPN_ROIS:
                 inputs.append(input_rois)
 
-            outputs = [output_rois,
-                       target_class_ids  , target_bbox  , target_mask  ,
-                       pcn_gaussian      , gt_gaussian  , pcn_tensor   , pcn_cls_cnt, gt_tensor , gt_cls_cnt,
-                       pcn_tensor2       , pcn_cls_cnt2 , gt_tensor2   , gt_cls_cnt2,
-                       rpn_class_logits  , rpn_rois     , rpn_class    , rpn_bbox   ,
-                       mrcnn_class_logits, mrcnn_class  , mrcnn_bbox   , mrcnn_mask ,
-                       # fcn_output        ,
-                       
-                       rpn_class_loss    , rpn_bbox_loss     , rpn_bbox_loss_old,
-                       class_loss , bbox_loss  , mask_loss
+            outputs = [
+                           output_rois       , target_class_ids  , target_bbox  , target_mask      #  0 - 3
+                         , rpn_class_logits  , rpn_rois          , rpn_class    , rpn_bbox 
+                         , mrcnn_class_logits, mrcnn_class       , mrcnn_bbox   , mrcnn_mask 
+                         , fcn_output       
+                           
+                         , rpn_class_loss    , rpn_bbox_loss   # , rpn_bbox_loss_old
+                         , class_loss        , bbox_loss         , mask_loss
                        # , class_loss_2
-                       ]
+
+                         , pred_gaussian     , pred_tensor       , pred_cls_cnt     # 4 -6                                
+                         , gt_gaussian       , gt_tensor         , gt_cls_cnt       # 7 - 9
+
+  
+                         , pred_gaussian2    , pred_tensor2      , pred_cls_cnt2    # 10 - 12
+                         , gt_gaussian2      , gt_tensor2        , gt_cls_cnt2      # 13 - 15
+
+                       # , pred_scatter      , means             , covar    
+                       # , gt_scatter        , gt_means          , gt_covar                               
+                       # , pred_scatter2     , means2            , covar2           
+                       # , gt_scatter2       , gt_means2         , gt_covar2      
+
+                      ]
         
             # model = KM.Model(inputs, outputs, name='mask_rcnn')
         
@@ -398,12 +437,12 @@ class MaskRCNN():
                                         config.NUM_CLASSES)
 
             # The PCI Layer prepares the input for the FCN layer ..
-            pcn_gaussian, pcn_tensor, pcn_cls_cnt = \
+            pred_gaussian, pred_tensor, pred_cls_cnt = \
                  PCILayer(config, name = 'cntxt_layer' ) ([mrcnn_class, mrcnn_bbox, detections])
                                         
             inputs  = [ input_image, input_image_meta]
             outputs = [ detections,
-                        pcn_gaussian,
+                        pred_gaussian,
                         rpn_rois, rpn_class, rpn_bbox,
                         mrcnn_class, mrcnn_bbox, mrcnn_mask ]
             # model = KM.Model( inputs, outputs,  name='mask_rcnn')                           
@@ -1095,7 +1134,7 @@ class MaskRCNN():
             if layer.output in self.keras_model.losses:
                 continue
             self.keras_model.add_loss(
-                tf.reduce_mean(layer.output, keep_dims=True))
+                tf.reduce_mean(layer.output, keepdims=True))
 
         # Add L2 Regularization
         # Skip gamma and beta weights of batch normalization layers.
@@ -1114,8 +1153,7 @@ class MaskRCNN():
                 continue
             layer = self.keras_model.get_layer(name)
             self.keras_model.metrics_names.append(name)
-            self.keras_model.metrics_tensors.append(tf.reduce_mean(
-                layer.output, keep_dims=True))
+            self.keras_model.metrics_tensors.append(tf.reduce_mean(layer.output, keepdims=True))
 
 
 

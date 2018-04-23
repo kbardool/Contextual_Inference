@@ -492,5 +492,6 @@ def plot_gaussian( Z, title = 'My figure' ):
 
     # Add a color bar which maps values to colors.
     fig.colorbar(surf, shrink=0.5, aspect=5)
-
+    
     plt.show()
+    

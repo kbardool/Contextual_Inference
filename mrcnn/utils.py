@@ -78,6 +78,30 @@ def trim_zeros(x):
     assert len(x.shape) == 2
     return x[~np.all(x == 0, axis=1)]
 
+def stack_tensors(x):
+    ''' 
+    stack an [Batch x Class x Row x Col] tensor into Row x Cols
+    originally written for pred_tensor
+    '''
+    print(' input shape is : ', x.shape)
+    lst2 = [ np.squeeze(item) for item in np.split( x, x.shape[0], axis = 0 )]
+    lst2 = [ np.squeeze(np.concatenate(np.split(item, item.shape[0], axis = 0 ), axis = 1)) for item in lst2]
+    result = [ item[~np.all(item[:,2:6] == 0, axis=1)] for item in lst2]
+    print(' length of output list is : ', len(result))
+    return (result)
+
+def stack_tensors_3d(x):
+    ''' 
+    stack an  [Class x Row x Col] tensor into Row x Cols
+    originally written for pred_tensor[img_id]
+    ''' 
+    print(' input shape is : ', x.shape)
+    lst2   = [np.squeeze(item) for item in np.split( x, x.shape[0], axis = 0 )]
+    result = np.concatenate( [ i[~np.all(i[:,2:6] == 0, axis=1)] for i in lst2] , axis = 0)
+    print(' output shape is : ', result.shape)
+    # print(result)
+    return (result)
+
 
 ###############################################################################
 ## Data Formatting
@@ -583,7 +607,13 @@ def generate_pyramid_anchors(anchor_scales, anchor_ratios, feature_shapes, featu
     """
     # Anchors
     # [anchor_count, (y1, x1, y2, x2)]
-    print('>>> Generate pyramid anchors ')
+    print('\n>>> Generate pyramid anchors ')
+    print('      Anchor  scales:  ', anchor_scales)
+    print('      Anchor  ratios:  ', anchor_ratios)
+    print('      Anchor  stride:  ', anchor_stride)
+    print('      Feature shapes:  ', feature_shapes)
+    print('      Feature strides: ', feature_strides)
+
     anchors = []
     for i in range(len(anchor_scales)):
         anchors.append(generate_anchors(anchor_scales[i], anchor_ratios, feature_shapes[i],

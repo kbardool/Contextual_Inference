@@ -122,7 +122,9 @@ def conv_block(input_tensor, kernel_size, filters, stage, block,
 
 def resnet_graph(input_image, architecture, stage5=False):
     assert architecture in ["resnet50", "resnet101"]
-    
+
+    print('\n>>> Resnet Graph ')
+    print('     Input_image shape :', input_image.shape)
     # Stage 1 : Convolutional Layer 1
     #   zero pad image 3 x 3 
     #   apply 2D convolution of 64 filters with kernal size of 7 x 7 stride 2 x 2
@@ -130,11 +132,15 @@ def resnet_graph(input_image, architecture, stage5=False):
     #   apply Relu activation 
     #   apply max pooling (3,3) stride (2,2)
     x = KL.ZeroPadding2D((3, 3))(input_image)
+    print('     After ZeroPadding2D  :', x.get_shape(), x.shape)
     x = KL.Conv2D(64, (7, 7), strides=(2, 2), name='conv1', use_bias=True)(x)
+    print('     After Conv2D padding :', x.get_shape(), x.shape)
     x = BatchNorm(axis=3, name='bn_conv1')(x)
+    print('     After BatchNorm      :', x.get_shape(), x.shape)   
     x = KL.Activation('relu')(x)
     
     C1 = x = KL.MaxPooling2D((3, 3), strides=(2, 2), padding="same")(x)
+    print('     After MaxPooling2D   :', C1.get_shape(), C1.shape)
     
     # Stage 2
     #   conv block , kernel size: 3, filters: [64, 64, 256]

@@ -52,8 +52,8 @@ def overlaps_graph(boxes1, boxes2):
     b1 = tf.reshape(tf.tile(tf.expand_dims(boxes1, 1), [1, 1, tf.shape(boxes2)[0]]), [-1, 4])
 
     b2 = tf.tile(boxes2, [tf.shape(boxes1)[0], 1])
-    # print('     overlaps_graph: shape of boxes1 after reshape: ',b1.shape)  # (?,4)
-    # print('     overlaps_graph: shape of boxes2 after reshape: ',b2.shape)  # (?,4)
+    print('     overlaps_graph: shape of boxes1 after reshape: ',b1.shape)  # (?,4)
+    print('     overlaps_graph: shape of boxes2 after reshape: ',b2.shape)  # (?,4)
 
 
     # 2. Compute intersections
@@ -76,7 +76,7 @@ def overlaps_graph(boxes1, boxes2):
     # 4. Compute IoU and reshape to [boxes1, boxes2]
     iou = intersection / union
     overlaps = tf.reshape(iou, [tf.shape(boxes1)[0], tf.shape(boxes2)[0]])
-    # print('    Overlaps_graph(): Shape of output overlaps', tf.shape(overlaps))
+    print('    Overlaps_graph(): Shape of output overlaps', tf.shape(overlaps))
     return overlaps
 
 
@@ -120,7 +120,7 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     # Remove zero padding   
     # non_zeros returns indicies to valid bboxes, which we use to index gt_class_ids, and gt_masks
     proposals, _        = utils.trim_zeros_graph(proposals, name="trim_proposals")
-    gt_boxes, non_zeros = utils.trim_zeros_graph(gt_boxes, name="trim_gt_boxes")
+    gt_boxes, non_zeros = utils.trim_zeros_graph(gt_boxes , name="trim_gt_boxes")
     gt_class_ids        = tf.boolean_mask(gt_class_ids, non_zeros, name="trim_gt_class_ids")
     gt_masks            = tf.gather(gt_masks, tf.where(non_zeros)[:, 0], axis=2,name="trim_gt_masks")
 
@@ -164,6 +164,7 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
 
     # Compute overlaps matrix [proposals, gt_boxes] - The IoU between 
     # proposals and gt_boxes (non-crowd gt boxes, designated by classId < 0 in Coco)
+    # overlaps is 
     # compute max of elements across axis 1 of overlaps tensor. 
     overlaps             = overlaps_graph(proposals, gt_boxes)
     roi_iou_max          = tf.reduce_max(overlaps, axis=1)
@@ -246,6 +247,8 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     N                = tf.shape(negative_rois)[0]
     P                = tf.maximum(config.TRAIN_ROIS_PER_IMAGE - tf.shape(rois)[0], 0)
     rois             = tf.pad(rois            , [(0, P), (0, 0)])
+    # print(' roi_gt_boxes :  ' , tf.shape(roi_gt_boxes) )
+    # print(' P:  ' , P,  ' N :    ', N)
     roi_gt_boxes     = tf.pad(roi_gt_boxes    , [(0, N + P), (0, 0)])
     roi_gt_class_ids = tf.pad(roi_gt_class_ids, [(0, N + P)])
     deltas           = tf.pad(deltas          , [(0, N + P), (0, 0)])
@@ -294,7 +297,7 @@ class DetectionTargetLayer(KE.Layer):
     def __init__(self, config, **kwargs):
         # super(DetectionTargetLayer, self).__init__(**kwargs)
         super().__init__(**kwargs)
-        print('>>> Detection Target Layer : initialization')
+        print('\n>>> Detection Target Layer ')
         self.config = config
 
     def call(self, inputs):

@@ -88,6 +88,14 @@ def fpn_classifier_graph(rois, feature_maps,
                         Deltas to apply to proposal boxes
                         
     '''
+    print('\n>>> FPN Classifier Graph ')
+    print('     rois shape          :', rois.get_shape())
+    print('     feature_maps :', len(feature_maps))
+    for item in feature_maps:
+        print('     feature_maps shape  :', item.get_shape())
+    print('     input_shape         :', image_shape)
+    print('     pool_size           :', pool_size)
+    
     # ROI Pooling
     # Shape: [batch, num_boxes, pool_height, pool_width, channels]
     x = PyramidROIAlign([pool_size, pool_size], image_shape,

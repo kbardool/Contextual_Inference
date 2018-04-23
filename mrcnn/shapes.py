@@ -72,8 +72,8 @@ class ShapesDataset(Dataset):
         '''
         
         # Add classes
-        self.add_class("shapes", 1, "circle")  # used to be class 2
-        self.add_class("shapes", 2, "square")  # used to be class 1
+        self.add_class("shapes", 2, "circle")  # used to be class 2
+        self.add_class("shapes", 1, "square")  # used to be class 1
         self.add_class("shapes", 3, "triangle")
 
         # Add images

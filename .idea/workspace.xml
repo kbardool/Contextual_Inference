@@ -2,30 +2,26 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="0c373396-6633-49f4-b4b2-ad69fcf6e45d" name="Default" comment="Updates as of 20-03-2018">
-      <change beforePath="" afterPath="$PROJECT_DIR$/PrintLayers.ipynb" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/misc_code/surface3d_demo.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/mrcnn/draft.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/mrcnn/fpn_layers.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/mrcnn/grad-cam.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/mrcnn/model__dict__.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/mrcnn/pc_layer.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/notebooks/Untitled.ipynb" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/notebooks/train_shapes.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/scratch.ipynb" />
-      <change beforePath="$PROJECT_DIR$/Untitled.ipynb" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/Untitled1.ipynb" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/Untitled2.ipynb" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/mrcnn/callbacks.py" afterPath="$PROJECT_DIR$/mrcnn/callbacks.py" />
-      <change beforePath="$PROJECT_DIR$/mrcnn/datagen.py" afterPath="$PROJECT_DIR$/mrcnn/datagen.py" />
-      <change beforePath="$PROJECT_DIR$/mrcnn/detection_layer.py" afterPath="$PROJECT_DIR$/mrcnn/detection_layer.py" />
-      <change beforePath="$PROJECT_DIR$/mrcnn/loss.py" afterPath="$PROJECT_DIR$/mrcnn/loss.py" />
-      <change beforePath="$PROJECT_DIR$/mrcnn/model.py" afterPath="$PROJECT_DIR$/mrcnn/model.py" />
-      <change beforePath="$PROJECT_DIR$/mrcnn/resnet_model.py" afterPath="$PROJECT_DIR$/mrcnn/resnet_model.py" />
-      <change beforePath="$PROJECT_DIR$/mrcnn/shapes.py" afterPath="$PROJECT_DIR$/mrcnn/shapes.py" />
-      <change beforePath="$PROJECT_DIR$/mrcnn/utils.py" afterPath="$PROJECT_DIR$/mrcnn/utils.py" />
-      <change beforePath="$PROJECT_DIR$/mrcnn/visualize.py" afterPath="$PROJECT_DIR$/mrcnn/visualize.py" />
-      <change beforePath="$PROJECT_DIR$/notebooks/train_shapes.ipynb" afterPath="$PROJECT_DIR$/notebooks/train_shapes.ipynb" />
-      <change beforePath="$PROJECT_DIR$/train_shapes.py" afterPath="$PROJECT_DIR$/train_shapes.py" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Mask_RCNN-2.0.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/New folder/detection_layer.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Original_Code.rar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/FCN_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/FCN_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/datagen.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/datagen.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/detect_tgt_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/detect_tgt_layer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/detection_layer.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/fpn_layers.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/fpn_layers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/loss.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/loss.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/model.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/pc_layer.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/proposal_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/proposal_layer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/resnet_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/resnet_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/rpn_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/rpn_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/shapes.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/shapes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mrcnn/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/mrcnn/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/notebooks/test_shapes 27-03.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/test_shapes 27-03.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/notebooks/train_shapes 01-04.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/train_shapes 01-04.ipynb" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -48,18 +44,11 @@
     <expand />
     <select />
   </component>
+  <component name="FavoritesManager">
+    <favorites_list name="Mask_RCNN_2" />
+  </component>
   <component name="FileEditorManager">
-    <leaf>
-      <file leaf-file-name="train_shapes.ipynb" pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/notebooks/train_shapes.ipynb">
-          <provider selected="true" editor-type-id="ipnb-editor">
-            <state>
-              <selected id="1" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-    </leaf>
+    <leaf />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -68,6 +57,8 @@
     <option name="CHANGED_PATHS">
       <list>
         <option value="$PROJECT_DIR$/notebooks/train_shapes.ipynb" />
+        <option value="$PROJECT_DIR$/notebooks/train_shapes 01-04.ipynb" />
+        <option value="$PROJECT_DIR$/mrcnn/proposal_layer.py" />
       </list>
     </option>
   </component>
@@ -84,21 +75,10 @@
     <option name="height" value="1000" />
   </component>
   <component name="ProjectView">
-    <navigator currentView="ProjectPane" proportions="" version="1">
-      <flattenPackages />
-      <showMembers />
-      <showModules />
-      <showLibraryContents />
-      <hideEmptyPackages />
-      <abbreviatePackageNames />
-      <autoscrollToSource />
-      <autoscrollFromSource />
-      <sortByType />
-      <manualOrder />
+    <navigator proportions="" version="1">
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scratches" />
       <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
@@ -110,7 +90,7 @@
             <path>
               <item name="Mask_RCNN_2" type="b2602c69:ProjectViewProjectNode" />
               <item name="Mask_RCNN_2" type="462c0819:PsiDirectoryNode" />
-              <item name="notebooks" type="462c0819:PsiDirectoryNode" />
+              <item name="mrcnn" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
@@ -138,6 +118,7 @@
   </component>
   <component name="RunManager">
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <module name="Mask_RCNN_2" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -148,17 +129,13 @@
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="Mask_RCNN_2" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" enabled="false" sample_coverage="true" runner="coverage.py" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="true" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
     </configuration>
-  </component>
-  <component name="ShelveChangesManager" show_recycled="false">
-    <option name="remove_strategy" value="false" />
   </component>
   <component name="SvnConfiguration">
     <configuration />
@@ -174,29 +151,30 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-9" y="-9" width="1938" height="1098" extended-state="6" />
+    <frame x="-7" y="-7" width="1550" height="878" extended-state="6" />
     <layout>
-      <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
-      <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
-      <window_info id="Documentation" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.17293233" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" x="0" y="0" width="434" height="896" />
-      <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.20711975" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32901832" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
-      <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32901832" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.16917293" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
-      <window_info id="Docker" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="false" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32975295" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
-      <window_info id="SciView" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32975295" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
-      <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="true" content_ui="tabs" />
-      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
-      <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
-      <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
-      <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
-      <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
-      <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
-      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info anchor="bottom" id="TODO" order="6" />
+      <window_info anchor="bottom" id="Event Log" order="7" side_tool="true" />
+      <window_info x="0" y="0" width="337" height="678" id="Documentation" order="5" sideWeight="0.5013477" weight="0.1870456" />
+      <window_info anchor="bottom" id="Database Changes" order="12" show_stripe_button="false" />
+      <window_info anchor="bottom" id="Version Control" order="8" weight="0.20711975" />
+      <window_info anchor="bottom" id="Python Console" order="9" weight="0.32901832" />
+      <window_info anchor="bottom" id="Run" order="2" />
+      <window_info anchor="bottom" id="Terminal" order="10" weight="0.32901832" />
+      <window_info active="true" content_ui="combo" id="Project" order="2" sideWeight="0.49865228" visible="true" weight="0.06741573" />
+      <window_info anchor="bottom" id="Docker" order="11" show_stripe_button="false" />
+      <window_info id="Database" order="0" weight="0.3295302" />
+      <window_info id="SciView" order="1" weight="0.3295302" />
+      <window_info id="Structure" order="3" sideWeight="0.49865228" weight="0.24966443" />
+      <window_info id="Favorites" order="4" sideWeight="0.49865228" weight="0.18724832" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
+      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
+      <window_info anchor="right" id="Commander" order="0" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
+      <window_info anchor="bottom" id="Find" order="1" />
+      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
+      <window_info anchor="bottom" id="Message" order="0" />
     </layout>
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -209,16 +187,11 @@
     <MESSAGE value="Updates as of 20-03-2018" />
     <option name="LAST_COMMIT_MESSAGE" value="Updates as of 20-03-2018" />
   </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager />
-    <watches-manager />
-  </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/notebooks/train_shapes.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding />
+    <entry file="file://$PROJECT_DIR$/notebooks/train_shapes.ipynb">
+      <provider selected="true" editor-type-id="ipnb-editor">
+        <state>
+          <selected id="0" />
         </state>
       </provider>
     </entry>
@@ -226,6 +199,20 @@
       <provider selected="true" editor-type-id="ipnb-editor">
         <state>
           <selected id="1" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/notebooks/train_shapes 01-04.ipynb">
+      <provider selected="true" editor-type-id="ipnb-editor">
+        <state>
+          <selected id="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/mrcnn/proposal_layer.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="589">
+          <caret line="159" column="19" selection-start-line="159" selection-start-column="19" selection-end-line="159" selection-end-column="19" />
         </state>
       </provider>
     </entry>

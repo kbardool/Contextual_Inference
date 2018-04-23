@@ -1,0 +1,73 @@
+Input 0:  (input_image             ) 	  Input shape: (6, 128, 128, 3)
+Input 1:  (input_image_meta        ) 	  Input shape: (6, 12)
+Input 2:  (input_rpn_match         ) 	  Input shape: (6, 4092, 1)
+Input 3:  (input_rpn_bbox          ) 	  Input shape: (6, 256, 4)
+Input 4:  (input_gt_class_ids      ) 	  Input shape: (6, 100)
+Input 5:  (input_gt_boxes          ) 	  Input shape: (6, 100, 4)
+Input 6:  (input_gt_masks          ) 	  Input shape: (6, 56, 56, 100)
+>>> CLS Loss Layer Wrapper: Begin
+>>>  mrcnn_class_loss_graph_2()
+     target_class_ids  <class 'numpy.ndarray'> (6, 32)
+     pred_class_logits <class 'numpy.ndarray'> (6, 32, 4)
+     active_class_ids  <class 'numpy.ndarray'> (6, 4)
+target_class_ids 
+
+[[1 3 1 1 1 2 2 3 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+ [1 1 1 2 1 2 2 2 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+ [2 2 2 2 2 2 2 2 2 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+ [3 3 3 1 3 3 3 3 1 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+ [1 2 2 1 1 1 2 1 1 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+ [2 2 2 2 2 2 2 2 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]]
+pred_class_ids  (argmaxs)  
+ <class 'tensorflow.python.framework.ops.Tensor'>
+[[1 3 1 1 1 2 2 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+ [1 1 1 2 1 2 0 2 1 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0]
+ [2 2 2 2 2 2 2 2 2 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+ [0 3 3 1 3 3 0 3 1 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0]
+ [1 2 2 1 1 1 2 1 1 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0]
+ [2 2 2 2 0 2 2 2 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0]]
+active_class_ids 
+ [[1. 1. 1. 1.]
+ [1. 1. 1. 1.]
+ [1. 1. 1. 1.]
+ [1. 1. 1. 1.]
+ [1. 1. 1. 1.]
+ [1. 1. 1. 1.]]
+pred_active  (6, 32)
+[[1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.]
+ [1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.]
+ [1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.]
+ [1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.]
+ [1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.]
+ [1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.]]
+ tf.reduce_sum(loss) 
+ 23.20093
+
+ tf.reduce_sum(pred_active) 
+ 192.0
+    mrcnn_class_loss_graph_2 : Loss is :  0.12083817
+    np_loss --->  0.12083817
+    Loss:  ()     0.12083817
+>>> CLS Loss Layer Wrapper: End <class 'numpy.float32'>
+Output 0:  (output_rois             ) 	  Output shape: (6, 32, 4)
+Output 1:  (cntxt_layer             ) 	  Output shape: (6, 4, 128, 128)
+Output 2:  (cntxt_layer             ) 	  Output shape: (6, 4, 128, 128)
+Output 3:  (cntxt_layer             ) 	  Output shape: (6, 4, 32, 8)
+Output 4:  (cntxt_layer             ) 	  Output shape: (6, 4)
+Output 5:  (cntxt_layer             ) 	  Output shape: (6, 4, 100, 8)
+Output 6:  (cntxt_layer             ) 	  Output shape: (6, 4)
+Output 7:  (rpn_class_logits        ) 	  Output shape: (6, 4092, 2)
+Output 8:  (proposal_rois           ) 	  Output shape: (6, 2000, 4)
+Output 9:  (rpn_class               ) 	  Output shape: (6, 4092, 2)
+Output 10: (rpn_bbox                ) 	  Output shape: (6, 4092, 4)
+Output 11: (mrcnn_class_logits      ) 	  Output shape: (6, 32, 4)
+Output 12: (mrcnn_class             ) 	  Output shape: (6, 32, 4)
+Output 13: (mrcnn_bbox              ) 	  Output shape: (6, 32, 4, 4)
+Output 14: (mrcnn_mask              ) 	  Output shape: (6, 32, 28, 28, 4)
+Output 15: (rpn_class_loss          ) 	  Output shape: ()
+Output 16: (rpn_bbox_loss           ) 	  Output shape: ()
+Output 17: (rpn_bbox_loss_old       ) 	  Output shape: ()
+Output 18: (mrcnn_class_loss        ) 	  Output shape: ()
+Output 19: (mrcnn_bbox_loss         ) 	  Output shape: (1, 1)
+Output 20: (mrcnn_mask_loss         ) 	  Output shape: (1, 1)
+Output 21: (mrcnn_class_loss_2      ) 	  Output shape: ()

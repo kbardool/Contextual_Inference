@@ -115,11 +115,13 @@ class ProposalLayer(KE.Layer):
         anchors: [N, (y1, x1, y2, x2)] anchors defined in image coordinates
         """
         super().__init__(**kwargs)
+        print('\n>>> Proposal Layer ')
+
         self.config = config
         self.proposal_count = proposal_count
         self.nms_threshold = nms_threshold
         self.anchors = anchors.astype(np.float32)
-        print('>>> Proposal Layer init complete. Size of anchors: ',self.anchors.shape)
+        print('    Init complete. Size of anchors: ',self.anchors.shape)
         
 
     # Layer logic resides here. 
