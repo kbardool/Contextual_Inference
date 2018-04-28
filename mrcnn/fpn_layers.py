@@ -59,8 +59,7 @@ def fpn_graph(Resnet_Layers):
 ###############################################################
 #  Feature Pyramid Network Head - Classifier
 ###############################################################
-def fpn_classifier_graph(rois, feature_maps,
-                         image_shape, pool_size, num_classes):
+def fpn_classifier_graph(rois, feature_maps, image_shape, pool_size, num_classes):
     '''
     Builds the computation graph of the feature pyramid network classifier
     and regressor heads.

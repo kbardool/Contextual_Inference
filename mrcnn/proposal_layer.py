@@ -159,8 +159,11 @@ class ProposalLayer(KE.Layer):
                                   names=["pre_nms_anchors"])
         # Apply deltas to anchors to get refined anchors.
         # [batch, N, (y1, x1, y2, x2)]
-        boxes = utils.batch_slice([anchors, deltas],lambda x, y: apply_box_deltas_graph(x, y),self.config.IMAGES_PER_GPU,
+        
+        boxes = utils.batch_slice([anchors, deltas],
+                                  lambda x, y: apply_box_deltas_graph(x, y),self.config.IMAGES_PER_GPU,
                                   names=["refined_anchors"])
+                                  
         print('     Scores : ' , scores.shape)
         print('     Deltas : ' , deltas.shape)
         print('     Anchors: ' , anchors.shape)
@@ -169,8 +172,10 @@ class ProposalLayer(KE.Layer):
         # Clip to image boundaries. [batch, N, (y1, x1, y2, x2)]
         height, width = self.config.IMAGE_SHAPE[:2]
         window = np.array([0, 0, height, width]).astype(np.float32)
-        boxes  = utils.batch_slice(boxes, lambda x: clip_boxes_graph(x, window), self.config.IMAGES_PER_GPU,
-                                  names=["refined_anchors_clipped"])
+        
+        boxes  = utils.batch_slice(boxes, 
+                                   lambda x: clip_boxes_graph(x, window), self.config.IMAGES_PER_GPU,
+                                   names=["refined_anchors_clipped"])
 
         #-------------------------------------------------------------------------
         # Filter out small boxes :
@@ -210,7 +215,7 @@ class ProposalLayer(KE.Layer):
                                                    
             proposals = tf.gather(normalized_boxes, indices)
             # Pad if needed
-            padding = tf.maximum(self.proposal_count - tf.shape(proposals)[0], 0)
+            padding   = tf.maximum(self.proposal_count - tf.shape(proposals)[0], 0)
             proposals = tf.pad(proposals, [(0, padding), (0, 0)])
             return proposals
             

@@ -47,16 +47,18 @@ def batch_slice(inputs, graph_fn, batch_size, names=None):
     outputs = []
     
     for i in range(batch_size):
-        inputs_slice = [x[i] for x in inputs]    # When inputs i a list eg. [scores, ix], input_slice = [scores[0], ix[0]]
-        output_slice = graph_fn(*inputs_slice)   # pass inputs_slice through the graph function 
+        inputs_slice = [x[i] for x in inputs]    # inputs is a list eg. [sc, ix] => input_slice = [sc[0], ix[0],...]
+        output_slice = graph_fn(*inputs_slice)   # pass list of inputs_slices through function => graph_fn(sc[0], ix[0],...)
     
         if not isinstance(output_slice, (tuple, list)):
             output_slice = [output_slice]
         outputs.append(output_slice)
     
-    # Change outputs from a list of slices where each is
-    # a list of outputs to a list of outputs and each has
-    # a list of slices
+    # Change outputs from:
+    #    a list of slices where each is a list of outputs, e.g.  [ [out1[0],out2[0]], [out1[1], out2[1]],.....
+    # to 
+    #    a list of outputs and each has a list of slices ==>    [ [out1[0],out1[1],...] , [out2[0], out2[1],....],.....    
+    
     outputs = list(zip(*outputs))
 
     if names is None:
@@ -607,12 +609,12 @@ def generate_pyramid_anchors(anchor_scales, anchor_ratios, feature_shapes, featu
     """
     # Anchors
     # [anchor_count, (y1, x1, y2, x2)]
-    print('\n>>> Generate pyramid anchors ')
-    print('      Anchor  scales:  ', anchor_scales)
-    print('      Anchor  ratios:  ', anchor_ratios)
-    print('      Anchor  stride:  ', anchor_stride)
-    print('      Feature shapes:  ', feature_shapes)
-    print('      Feature strides: ', feature_strides)
+    # print('\n>>> Generate pyramid anchors ')
+    # print('      Anchor  scales:  ', anchor_scales)
+    # print('      Anchor  ratios:  ', anchor_ratios)
+    # print('      Anchor  stride:  ', anchor_stride)
+    # print('      Feature shapes:  ', feature_shapes)
+    # print('      Feature strides: ', feature_strides)
 
     anchors = []
     for i in range(len(anchor_scales)):
@@ -622,7 +624,7 @@ def generate_pyramid_anchors(anchor_scales, anchor_ratios, feature_shapes, featu
     # concatenate these arrays on axis 0
     
     pp = np.concatenate(anchors, axis=0)
-    print('    Size of anchor array is :',pp.shape)
+    # print('    Size of anchor array is :',pp.shape)
    
     return pp
    

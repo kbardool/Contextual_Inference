@@ -7,14 +7,16 @@ Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
 
-import numpy as np
-import tensorflow as tf
-import keras.backend as K
-import keras.layers as KL
+import numpy         as np
+import tensorflow    as tf
+import keras.backend as KB
+import keras.layers  as KL
 import keras.initializers as KI
-import keras.engine as KE
+import keras.engine  as KE
 
-import mrcnn.utils as utils
+import mrcnn.utils   as utils
+import pprint
+pp = pprint.PrettyPrinter(indent=2, width=100)
 
 
 ##-----------------------------------------------------------------------
@@ -24,8 +26,8 @@ def smooth_l1_loss(y_true, y_pred):
     """Implements Smooth-L1 loss.
     y_true and y_pred are typicallly: [N, 4], but could be any shape.
     """
-    diff = K.abs(y_true - y_pred)
-    less_than_one = K.cast(K.less(diff, 1.0), "float32")
+    diff = KB.abs(y_true - y_pred)
+    less_than_one = KB.cast(KB.less(diff, 1.0), "float32")
     loss = (less_than_one * 0.5 * diff**2) + (1 - less_than_one) * (diff - 0.5)
     return loss
 
@@ -47,68 +49,68 @@ def rpn_class_loss_graph(rpn_match, rpn_class_logits):
     rpn_match = tf.squeeze(rpn_match, -1)
     
     # Get anchor classes. Convert the -1/+1 match to 0/1 values.
-    anchor_class = K.cast(K.equal(rpn_match, 1), tf.int32)
+    anchor_class = KB.cast(KB.equal(rpn_match, 1), tf.int32)
     
     # Positive and Negative anchors contribute to the loss,
     # but neutral anchors (match value = 0) don't.
-    indices = tf.where(K.not_equal(rpn_match, 0))
+    indices = tf.where(KB.not_equal(rpn_match, 0))
     
     # Pick rows that contribute to the loss and filter out the rest.
     rpn_class_logits = tf.gather_nd(rpn_class_logits, indices)
     anchor_class     = tf.gather_nd(anchor_class, indices)
     
     # Crossentropy loss
-    loss = K.sparse_categorical_crossentropy(target=anchor_class,
+    loss = KB.sparse_categorical_crossentropy(target=anchor_class,
                                              output=rpn_class_logits,
                                              from_logits=True)
     
-    loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
+    loss = KB.switch(tf.size(loss) > 0, KB.mean(loss), tf.constant(0.0))
     return loss
 
 ##-----------------------------------------------------------------------
 ##  RPN bbox loss - obsolete -- use rpn_bbox_loss_graph()
 ##-----------------------------------------------------------------------    
-def rpn_bbox_loss_graph_old(config, target_bbox, rpn_match, rpn_bbox):
-    '''
-    Return the RPN bounding box loss graph.
+# def rpn_bbox_loss_graph_old(config, target_bbox, rpn_match, rpn_bbox):
+    # '''
+    # Return the RPN bounding box loss graph.
 
-    config:             the model config object.
+    # config:             the model config object.
     
-    target_bbox:        [batch, max positive anchors, (dy, dx, log(dh), log(dw))].
-                        Uses 0 padding to fill in unsed bbox deltas.
+    # target_bbox:        [batch, max positive anchors, (dy, dx, log(dh), log(dw))].
+                        # Uses 0 padding to fill in unsed bbox deltas.
     
-    rpn_match:          [batch, anchors, 1]. Anchor match type. 1=positive,
-                        -1=negative, 0=neutral anchor.
+    # rpn_match:          [batch, anchors, 1]. Anchor match type. 1=positive,
+                        # -1=negative, 0=neutral anchor.
     
-    rpn_bbox:           [batch, anchors, (dy, dx, log(dh), log(dw))]
+    # rpn_bbox:           [batch, anchors, (dy, dx, log(dh), log(dw))]
     
-    '''
-    # Positive anchors contribute to the loss, but negative and
-    # neutral anchors (match value of 0 or -1) don't.
-    rpn_match = K.squeeze(rpn_match, -1)
-    indices   = tf.where(K.equal(rpn_match, 1))
+    # '''
+    # # Positive anchors contribute to the loss, but negative and
+    # # neutral anchors (match value of 0 or -1) don't.
+    # rpn_match = KB.squeeze(rpn_match, -1)
+    # indices   = tf.where(KB.equal(rpn_match, 1))
 
-    print('>>> rpn_bbox_loss_graph_old' )
-    print('    rpn_match size    : ', rpn_match.shape)
-    print('    rpn_bbox  size    : ', rpn_bbox.shape)
-    print('    target_bbox size n: ', target_bbox.shape)
+    # print('>>> rpn_bbox_loss_graph_old' )
+    # print('    rpn_match size    : ', rpn_match.shape)
+    # print('    rpn_bbox  size    : ', rpn_bbox.shape)
+    # print('    target_bbox size n: ', target_bbox.shape)
     
-    # Pick bbox deltas that contribute to the loss
-    rpn_bbox  = tf.gather_nd(rpn_bbox, indices)
+    # # Pick bbox deltas that contribute to the loss
+    # rpn_bbox  = tf.gather_nd(rpn_bbox, indices)
 
-    # Trim target bounding box deltas to the same length as rpn_bbox.
-    batch_counts = K.sum(K.cast(K.equal(rpn_match, 1), tf.int32), axis=1)
-    target_bbox  = utils.batch_pack_graph(target_bbox, batch_counts,
-                                   config.IMAGES_PER_GPU)
+    # # Trim target bounding box deltas to the same length as rpn_bbox.
+    # batch_counts = KB.sum(KB.cast(KB.equal(rpn_match, 1), tf.int32), axis=1)
+    # target_bbox  = utils.batch_pack_graph(target_bbox, batch_counts,
+                                   # config.IMAGES_PER_GPU)
 
-    # TODO: use smooth_l1_loss() rather than reimplementing here
-    #       to reduce code duplication
-    diff = K.abs(target_bbox - rpn_bbox)
-    less_than_one = K.cast(K.less(diff, 1.0), "float32")
-    loss = (less_than_one * 0.5 * diff**2) + (1 - less_than_one) * (diff - 0.5)
-    loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
+    # # TODO: use smooth_l1_loss() rather than reimplementing here
+    # #       to reduce code duplication
+    # diff = KB.abs(target_bbox - rpn_bbox)
+    # less_than_one = KB.cast(KB.less(diff, 1.0), "float32")
+    # loss = (less_than_one * 0.5 * diff**2) + (1 - less_than_one) * (diff - 0.5)
+    # loss = KB.switch(tf.size(loss) > 0, KB.mean(loss), tf.constant(0.0))
     
-    return loss
+    # return loss
 
 ##-----------------------------------------------------------------------
 ##  RPN bbox loss  
@@ -132,9 +134,9 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
 
     # Positive anchors contribute to the loss, but negative and
     # neutral anchors (match value of 0 or -1) don't.
-    rpn_match = K.squeeze(rpn_match, -1)
-    indices   = tf.where(K.equal(rpn_match, 1))
-    print('>>> rpn_bbox_loss_graph' )
+    rpn_match = KB.squeeze(rpn_match, -1)
+    indices   = tf.where(KB.equal(rpn_match, 1))
+    print('\n>>> rpn_bbox_loss_graph' )
     print('    rpn_match size :', rpn_match.shape)
     print('    rpn_bbox  size :', rpn_bbox.shape)
     print('    tf default session: ', tf.get_default_session())
@@ -144,15 +146,15 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
     rpn_bbox  = tf.gather_nd(rpn_bbox, indices)
 
     # Trim target bounding box deltas to the same length as rpn_bbox.
-    batch_counts = K.sum(K.cast(K.equal(rpn_match, 1), tf.int32), axis=1)
+    batch_counts = KB.sum(KB.cast(KB.equal(rpn_match, 1), tf.int32), axis=1)
     target_bbox  = utils.batch_pack_graph(target_bbox, batch_counts,
                                    config.IMAGES_PER_GPU)
   
     # Smooth-L1 Loss
-    loss     = K.switch(tf.size(target_bbox) > 0,
+    loss     = KB.switch(tf.size(target_bbox) > 0,
                     smooth_l1_loss(y_true=target_bbox, y_pred=rpn_bbox),
                     tf.constant(0.0))
-    loss     = K.mean(loss)
+    loss     = KB.mean(loss)
     
     return loss
 
@@ -172,7 +174,7 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
                             classes that are in the dataset of the image, and 0
                             for classes that are not in the dataset.
     '''
-    print('>>> mrcnn_class_loss_graph ' )
+    print('\n>>> mrcnn_class_loss_graph ' )
     print('    target_class_ids  size :', target_class_ids.shape)
     print('    pred_class_logits size :', pred_class_logits.shape)
     print('    active_class_ids  size :', active_class_ids.shape)    
@@ -197,7 +199,7 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
     # Computer loss mean. Use only predictions that contribute
     # to the loss to get a correct mean.
     loss = tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
-    loss = K.reshape(loss, [1, 1])
+    loss = KB.reshape(loss, [1, 1])
     return loss
 
 ##-----------------------------------------------------------------------
@@ -211,15 +213,15 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
     pred_bbox:          [batch, num_rois, num_classes, (dy, dx, log(dh), log(dw))]
     
     '''
-    print('>>> mrcnn_bbox_loss_graph ' )
+    print('\n>>> mrcnn_bbox_loss_graph ' )
     print('    target_class_ids  size :', target_class_ids.shape)
     print('    pred_bbox size         :', pred_bbox.shape)
     print('    target_bbox size       :', target_bbox.shape)    
     
     # Reshape to merge batch and roi dimensions for simplicity.
-    target_class_ids = K.reshape(target_class_ids, (-1,))
-    target_bbox      = K.reshape(target_bbox, (-1, 4))
-    pred_bbox        = K.reshape(pred_bbox, (-1, K.int_shape(pred_bbox)[2], 4))
+    target_class_ids = KB.reshape(target_class_ids, (-1,))
+    target_bbox      = KB.reshape(target_bbox, (-1, 4))
+    pred_bbox        = KB.reshape(pred_bbox, (-1, KB.int_shape(pred_bbox)[2], 4))
 
     # Only positive ROIs contribute to the loss. And only
     # the right class_id of each ROI. Get their indicies.
@@ -232,11 +234,11 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
     pred_bbox   = tf.gather_nd(pred_bbox, indices)
 
     # Smooth-L1 Loss
-    loss        = K.switch(tf.size(target_bbox) > 0,
+    loss        = KB.switch(tf.size(target_bbox) > 0,
                     smooth_l1_loss(y_true=target_bbox, y_pred=pred_bbox),
                     tf.constant(0.0))
-    loss        = K.mean(loss)
-    loss        = K.reshape(loss, [1, 1])
+    loss        = KB.mean(loss)
+    loss        = KB.reshape(loss, [1, 1])
     return loss
 
 ##-----------------------------------------------------------------------
@@ -252,17 +254,25 @@ def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
                         with values from 0 to 1.
     """
     # Reshape for simplicity. Merge first two dimensions into one.
-    print('>>> mrcnn_mask_loss_graph ' )
-    print('    target_class_ids size :', target_class_ids.shape)
-    print('    target_masks     size :', target_masks.shape)
-    print('    pred_masks       size :', pred_masks.shape)    
+    print('\n>>> mrcnn_mask_loss_graph ' )
+    print('    target_class_ids shape :', target_class_ids.shape)
+    print('    target_masks     shape :', target_masks.shape)
+    print('    pred_masks       shape :', pred_masks.shape)    
     
-    target_class_ids = K.reshape(target_class_ids, (-1,))
-    mask_shape       = tf.shape(target_masks)
-    target_masks     = K.reshape(target_masks, (-1, mask_shape[2], mask_shape[3]))
+    target_class_ids = KB.reshape(target_class_ids, (-1,))
+    print('    target_class_ids shape :', target_class_ids.shape)
+    
+    target_shape       = tf.shape(target_masks)
+    print('    target_shape       shape :', target_shape.shape)    
+    
+    target_masks     = KB.reshape(target_masks, (-1, target_shape[2], target_shape[3]))
+    print('    target_masks     shape :', target_masks.shape)        
+    
     pred_shape       = tf.shape(pred_masks)
-    pred_masks       = K.reshape(pred_masks, (-1, pred_shape[2], pred_shape[3], pred_shape[4]))
+    print('    pred_shape       shape :', pred_shape.shape)        
     
+    pred_masks       = KB.reshape(pred_masks, (-1, pred_shape[2], pred_shape[3], pred_shape[4]))
+    print('    pred_masks       shape :', pred_masks.get_shape())        
     # Permute predicted masks to [N, num_classes, height, width]
     pred_masks = tf.transpose(pred_masks, [0, 3, 1, 2])
 
@@ -274,16 +284,123 @@ def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
 
     # Gather the masks (predicted and true) that contribute to loss
     y_true = tf.gather(target_masks, positive_ix)
+    print('     y_true shape:', y_true.get_shape())
     y_pred = tf.gather_nd(pred_masks, indices)
+    print('     y_pred shape:', y_pred.get_shape())
+    # Compute binary cross entropy. If no positive ROIs, then return 0.
+    # shape: [batch, roi, num_classes]
+    loss = KB.switch(tf.size(y_true) > 0,
+                    KB.binary_crossentropy(target=y_true, output=y_pred),
+                    tf.constant(0.0))
+    loss = KB.mean(loss)
+    loss = KB.reshape(loss, [1, 1])
+    print('     final loss shape:', loss.get_shape(), type(loss), KB.is_keras_tensor(loss))
+    return loss
+
+##-----------------------------------------------------------------------
+##  FCN loss
+##-----------------------------------------------------------------------    
+def fcn_loss_graph(target_masks, pred_masks):
+# def fcn_loss_graph(input):
+    # target_masks, pred_masks = input
+    """Mask binary cross-entropy loss for the masks head.
+
+    target_masks:       [batch, height, width, num_classes].
+    
+    pred_masks:         [batch, height, width, num_classes] float32 tensor
+    """
+    # Reshape for simplicity. Merge first two dimensions into one.
+
+    print('\n>>> fcn_loss_graph ' )
+    print('    target_masks     shape :', target_masks.get_shape(), KB.shape(target_masks))
+    print('    target_masks is keras tensor:', KB.is_keras_tensor(target_masks))
+
+    print('    pred_masks       shape :', pred_masks.get_shape()  , KB.shape(pred_masks))    
+    print('    pred_masks is keras tensor:', KB.is_keras_tensor(pred_masks))
+    
+    target_shape       = KB.shape(target_masks)
+    print('    target_shape       shape :', target_shape.shape)    
+    
+    target_masks     = KB.reshape(target_masks, (-1, target_shape[1], target_shape[2]))
+    print('    target_masks     shape :', target_masks.shape)        
+    
+    pred_shape       = KB.shape(pred_masks)
+    print('    pred_shape       shape :', pred_shape.shape)        
+    
+    pred_masks       = KB.reshape(pred_masks, (-1, pred_shape[1], pred_shape[2]))
+    print('    pred_masks       shape :', pred_masks.get_shape())        
 
     # Compute binary cross entropy. If no positive ROIs, then return 0.
     # shape: [batch, roi, num_classes]
-    loss = K.switch(tf.size(y_true) > 0,
-                    K.binary_crossentropy(target=y_true, output=y_pred),
-                    tf.constant(0.0))
-    loss = K.mean(loss)
-    loss = K.reshape(loss, [1, 1])
+    # Smooth-L1 Loss
+    loss        = KB.switch(tf.size(target_masks) > 0,
+                    smooth_l1_loss(y_true=target_masks, y_pred=pred_masks),
+                    KB.constant(0.0))
+    print('    loss is keras tensor:', KB.is_keras_tensor(loss))                    
+    loss        = KB.mean(loss)
+    loss        = KB.reshape(loss, [1, 1])
+    print('    loss type is :', type(loss))
     return loss
-
  
+
+##-----------------------------------------------------------------------
+##  FCN loss
+##-----------------------------------------------------------------------    
+def fcn_norm_loss_graph(target_masks, pred_masks):
+    '''
+    Mask binary cross-entropy loss for the masks head.
+    target_masks:       [batch, height, width, num_classes].
+    pred_masks:         [batch, height, width, num_classes] float32 tensor
+    '''
+    # Reshape for simplicity. Merge first two dimensions into one.
+    print('\n>>> fcn_norm_loss_graph ' )
+    print('    target_masks     shape :', target_masks.shape)
+    print('    pred_masks       shape :', pred_masks.shape)    
+    print('\n    L2 normalization ------------------------------------------------------')   
+    pred_shape=KB.shape(pred_masks)
+    print(' pred_shape: KB.shape:' , pred_shape, ' tf.get_shape(): ', pred_masks.get_shape(), ' pred_maks.shape:', 
+                                     pred_masks.shape, 'tf.shape :', tf.shape(pred_masks))
     
+    output_flatten = KB.reshape(pred_masks, (pred_shape[0], -1, pred_shape[-1]) )
+    output_norm1   = KB.l2_normalize(output_flatten, axis = 1)    
+    output_norm    = KB.reshape(output_norm1,  pred_shape )    
+
+    print('   output_flatten    : ', KB.int_shape(output_flatten) , output_flatten.get_shape(),' Keras tensor ', KB.is_keras_tensor(output_flatten) )
+    print('   output_norm1      : ', KB.int_shape(output_norm1)   ,   output_norm1.get_shape(),' Keras tensor ', KB.is_keras_tensor(output_norm1) )
+    print('   output_norm final : ', KB.int_shape(output_norm)    ,    output_norm.get_shape(),' Keras tensor ', KB.is_keras_tensor(output_norm) )
+
+
+
+    print('\n    L2 normalization ------------------------------------------------------')         
+    target_shape  = KB.shape(target_masks)
+    print(' target shape is :' , target_shape, '   ', target_masks.get_shape(), target_masks.shape, tf.shape(target_masks))
+ 
+    gauss_flatten = KB.reshape(target_masks, (target_shape[0], -1, target_shape[-1]) )
+    gauss_norm1   = KB.l2_normalize(gauss_flatten, axis = 1)
+    gauss_norm    = KB.reshape(gauss_norm1, target_shape)
+    
+    print('    guass_flatten         : ', gauss_flatten.shape, gauss_flatten.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_flatten) )
+    print('    gauss_norm shape      : ',   gauss_norm1.shape,   gauss_norm1.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_norm1) )
+    print('    gauss_norm final shape: ',    gauss_norm.shape,    gauss_norm.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_norm) )
+    
+    pred_masks1   = output_norm
+    target_masks1 = gauss_norm
+
+    # pred_shape    = KB.shape(target_masks1)
+    # print('    pred_shape shape :', pred_shape.eval(), KB.int_shape(pred_shape))    
+    target_masks1 = KB.reshape(target_masks1, (-1, pred_shape[1], pred_shape[2]))
+    print('    target_masks1 shape :', target_masks1.get_shape(), KB.int_shape(target_masks1))        
+    pred_masks1   = KB.reshape(pred_masks1  , (-1, pred_shape[1], pred_shape[2]))
+    print('    pred_masks1  shape :', pred_masks1.get_shape())        
+
+    # Compute binary cross entropy. If no positive ROIs, then return 0.
+    # shape: [batch, roi, num_classes]
+    # Smooth-L1 Loss
+    loss        = KB.switch(tf.size(target_masks1) > 0,
+                    smooth_l1_loss(y_true=target_masks1, y_pred=pred_masks1),
+                    tf.constant(0.0))
+    loss        = KB.mean(loss)
+    loss        = KB.reshape(loss, [1, 1])
+    print('    loss type is :', type(loss))
+    return loss
+     

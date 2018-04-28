@@ -48,23 +48,24 @@ def clip_to_window(window, boxes):
 
 
 def refine_detections(rois, probs, deltas, window, config):
-    """
+    '''
     Refine classified proposals and filter overlaps and return final detections.
 
     Inputs:
     ------
         
-    rois:           [N, (y1, x1, y2, x2)] in normalized coordinates
-    probs:          [N, num_classes]. Class probabilities.
-    deltas:         [N, num_classes, (dy, dx, log(dh), log(dw))]. 
-                    Class-specific bounding box deltas.
+    rois:           rpn_rois    - [N, (y1, x1, y2, x2)] in normalized coordinates
+    probs:          mrcnn_class - [N, num_classes]. Class probabilities.
+    deltas:         mrcnn_bbox  - [N, num_classes, (dy, dx, log(dh), log(dw))]. 
+                                  Class-specific bounding box deltas.
     window:         (y1, x1, y2, x2) in image coordinates. The part of the image
                     that contains the image excluding the padding.
 
     Returns:
     --------
     detections      [N, (y1, x1, y2, x2, class_id, score)]
-    """
+    '''
+    
     # Class IDs per ROI
     class_ids       = np.argmax(probs, axis=1)
     
@@ -125,7 +126,7 @@ def refine_detections(rois, probs, deltas, window, config):
     # Arrange output as [N, (y1, x1, y2, x2, class_id, score)]
     # Coordinates are in image domain.
     result = np.hstack((refined_rois[keep],
-                        class_ids[keep][..., np.newaxis],
+                        class_ids   [keep][..., np.newaxis],
                         class_scores[keep][..., np.newaxis]))
 
     return result
@@ -153,6 +154,7 @@ class DetectionLayer(KE.Layer):
             for b in range(self.config.BATCH_SIZE):
                 _, _, window, _ =  parse_image_meta(image_meta)
                 detections = refine_detections(rois[b], mrcnn_class[b], mrcnn_bbox[b], window[b], self.config)
+                
                 # Pad with zeros if detections < DETECTION_MAX_INSTANCES
                 gap = self.config.DETECTION_MAX_INSTANCES - detections.shape[0]
                 assert gap >= 0

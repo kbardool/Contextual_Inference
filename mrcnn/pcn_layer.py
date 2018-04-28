@@ -122,7 +122,7 @@ def build_ground_truth(gt_class_ids, norm_gt_bboxes, config):
     gt_bboxes   = norm_gt_bboxes   * np.array([h,w,h,w])   
     gt_new      = np.empty((num_detections, num_cols))
         # gt_masks   = sample_x[gtmsk_idx][0,:,:,nz_idx]
-    # print('gt_class_ids shape : ', gt_class_ids.shape, '\t norm_gt_bboxes.shape : ', norm_gt_bboxes.shape )
+    print('gt_class_ids shape : ', gt_class_ids.shape, '\t norm_gt_bboxes.shape : ', norm_gt_bboxes.shape )
     # print('\n',gt_class_ids)
     # print('\n',gt_bboxes)
 
@@ -137,6 +137,10 @@ def build_ground_truth(gt_class_ids, norm_gt_bboxes, config):
             cls_idxs = np.where( gt_class_ids[img, :] == cls)
             cls_cnt  = cls_idxs[0].shape[0] 
             # print('img is: ' , img , 'class: ', cls,  'cls_idxs: ' , cls_idxs)
+            print('img is: ' , img , 'class: ', cls,  'cls_idxs: ' , cls_idxs)
+            print('\n',gt_class_ids)
+            print('\n',gt_bboxes)
+
             gt_new.fill(0)
             gt_new[:cls_cnt,0]  = range(cls_cnt)
             gt_new[:cls_cnt,1]  = 1.0

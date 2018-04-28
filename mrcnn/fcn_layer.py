@@ -155,8 +155,22 @@ def fcn_graph( feature_map , config , weight_decay=0., batch_momentum=0.9):
     print('   h_factor : ', h_factor, 'w_factor : ', w_factor)
     
     output = BilinearUpSampling2D(size=(h_factor, w_factor), name='fcn_bilinear')(x)
-    print('   FCN output (fcn_bilinear) shape is : ' , output.get_shape())                          
+    print('   FCN output (fcn_bilinear) shape is : ' , output.get_shape(), 'Keras tensor ', KB.is_keras_tensor(output) )
+                          
+    # print('\n    L2 normalization ------------------------------------------------------')   
+    # output_shape=KB.int_shape(output)
+    # print(' output shape is :' , output_shape, '   ', output.get_shape(), output.shape, tf.shape(output).eval())
     
+    # output_flat = tf.reshape(output, [output.shape[0], -1, output.shape[-1]] )
+    # print('   output_flatten shape is : ', KB.int_shape(output_flat), ' Keras tensor ', KB.is_keras_tensor(output_flat) )
+    
+    # output_norm = KB.l2_normalize(output_flat, axis = 1)    
+    # print('   output_norm    shape is : ', KB.int_shape(output_norm), ' Keras tensor ', KB.is_keras_tensor(output_norm) )
+
+    # output_norm = KB.reshape(output,  output.shape )
+    # print('   output_norm final   shape is : ', KB.int_shape(output_norm), ' Keras tensor ', KB.is_keras_tensor(output_norm) )
+
+
     # return [x0, x1, x2,  output]
-    return output    
+    return output
 

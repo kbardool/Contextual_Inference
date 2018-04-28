@@ -106,14 +106,14 @@ def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
     
     
     gather_inds  = tf.stack([batch_grid , class_grid, sort_inds],axis = -1)
-    pred_tensor  = tf.gather_nd(pred_scatt, gather_inds)
+    pred_tensor  = tf.gather_nd(pred_scatt, gather_inds, name = 'pred_tensor')
     print('    gather_inds ', type(gather_inds), 'shape', gather_inds.get_shape())
     print('    pred_tensor (gathered)  : ', pred_tensor.get_shape())
 
     
     print('    -- pred_tensor results (bboxes sorted by score) ----')
     pred_tensor  = tf.concat([pred_tensor, roi_grid_exp], axis = -1)
-    pred_cls_cnt = tf.count_nonzero(pred_tensor[:,:,:,0], axis = -1)
+    pred_cls_cnt = tf.count_nonzero(pred_tensor[:,:,:,0], axis = -1, name = 'pred_cls_count')
     
     print('    final pred_tensor shape  : ', pred_tensor.get_shape())
     print('    final pred_cls_cnt shape : ',pred_cls_cnt.get_shape())
@@ -200,12 +200,12 @@ def build_ground_truth_tf(gt_class_ids, norm_gt_bboxes, config):
     # print(bbox_grid.eval())
 
     gather_inds = tf.stack([batch_grid , class_grid, sort_inds],axis = -1)
-    gt_tensor   = tf.gather_nd(gt_scatter, gather_inds)
+    gt_tensor   = tf.gather_nd(gt_scatter, gather_inds, name  = 'gt_tensor')
     gt_tensor   = tf.concat([gt_tensor, bbox_grid_exp], axis = -1)
     print('    gather_inds shape ', gather_inds.get_shape())
     print('    gt_tensor (gathered)   : ', gt_tensor.get_shape())
     
-    gt_cls_cnt = tf.count_nonzero(gt_tensor[:,:,:,0],axis = -1)
+    gt_cls_cnt = tf.count_nonzero(gt_tensor[:,:,:,0],axis = -1, name = 'gt_cls_count')
     print('    final gt_tensor shape  : ', gt_tensor.get_shape())
     print('    final gt_cls_cnt shape : ', gt_cls_cnt.get_shape())
     print('    complete')
@@ -214,22 +214,20 @@ def build_ground_truth_tf(gt_class_ids, norm_gt_bboxes, config):
 
     
     
-    
-    
-def build_gaussian_tf(in_tensor, pred_cls_cnt, config):
-        
-    # rois_per_image  = 32
-    
+def build_gaussian_tf(in_tensor, config, names = None):
+    # rois_per_image  = 32    
     num_detections  = config.DETECTION_MAX_INSTANCES
     h, w            = config.IMAGE_SHAPE[:2]
     num_cols        = 8
     img_h, img_w    = config.IMAGE_SHAPE[:2]
     batch_size      = config.BATCH_SIZE
     num_classes     = config.NUM_CLASSES  
-    print('\n    *** build_gaussian_tf ')
-    ## rois per image is determined by size of input tensor 
-    ##   detection mode:   config.TRAIN_ROIS_PER_IMAGE 
-    ##   ground_truth  :   config.DETECTION_MAX_INSTANCES
+    print('\n    *** build_gaussian_tf for ', names)
+    
+    # rois per image is determined by size of input tensor 
+    #   detection mode:   config.TRAIN_ROIS_PER_IMAGE 
+    #   ground_truth  :   config.DETECTION_MAX_INSTANCES
+    
     print('    in_tensor shape : ', in_tensor.shape)   
     in_tensor = in_tensor[:,:,:,2:7]
     print('    modified in_tensor shape : ', in_tensor.get_shape())
@@ -339,8 +337,7 @@ def build_gaussian_tf(in_tensor, pred_cls_cnt, config):
     prob_grid  = mvn.prob(pos_grid)
     trans_grid = tf.transpose(prob_grid,[2,3,0,1])
 
-    # print('    means shape ', means.get_shape())
-    # print('    covar shape ', covar.get_shape())
+    # print('    means shape ', means.get_shape(),' covar shape ', covar.get_shape())
     # print('    from MVN    : mns shape      : ', means.shape, means.get_shape())
     # print('    from MVN    : cov shape      : ', covar.shape, covar.get_shape())
     # print('    from MVN    : mean shape     : ', mvn.mean().get_shape(), '\t stddev shape', mvn.stddev().get_shape())
@@ -360,7 +357,7 @@ def build_gaussian_tf(in_tensor, pred_cls_cnt, config):
 
 
     ## scatter out the probability distributions based on class ---------------------------
-    print('    Scatter out the probability distributions based on class --------------')     
+    print('\n    Scatter out the probability distributions based on class --------------')     
     class_inds      = tf.to_int32(stacked_tensor[:,:,-1])
     batch_grid, roi_grid = tf.meshgrid( tf.range(batch_size, dtype=tf.int32), tf.range(rois_per_image, dtype=tf.int32),
                                         indexing = 'ij' )
@@ -375,13 +372,23 @@ def build_gaussian_tf(in_tensor, pred_cls_cnt, config):
     print('    gaussian scattered : ', gauss_scatt.shape)   
     
     ## sum based on class -----------------------------------------------------------------
-    print('    Reduce sum based on class ---------------------------------------------')         
-    gauss_sum = tf.reduce_sum(gauss_scatt, axis=2)
+    print('\n    Reduce sum based on class ---------------------------------------------')         
+    gauss_sum = tf.reduce_sum(gauss_scatt, axis=2, name='pred_gaussian')
     gauss_sum = tf.where(gauss_sum > 1e-6, gauss_sum,tf.zeros_like(gauss_sum))
-    gauss_sum = tf.transpose(gauss_sum,[0,2,3,1])
-    print('    gaussian_sum shape : ', gauss_sum.get_shape())    
-    print('    complete')
+    gauss_sum = tf.transpose(gauss_sum,[0,2,3,1], name = names[0])
+    print('    gaussian sum type/name : ', type(gauss_sum), gauss_sum.name, names[0])
+    print('    gaussian_sum shape     : ', gauss_sum.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_sum) )    
+
+    # L2 normalization  -----------------------------------------------------------------
+    # print('\n    L2 normalization ------------------------------------------------------')         
     
+    # gauss_flatten = KB.reshape(gauss_sum, [tf.shape(gauss_sum)[0], -1, tf.shape(gauss_sum)[-1]] )
+    # gauss_norm    = KB.l2_normalize(gauss_flatten, axis = 1)
+    # gauss_norm    = KB.reshape(gauss_norm, KB.shape(gauss_sum))
+    # print('    Shape of guassian_flattened  : ', KB.int_shape(gauss_flatten), 'Keras tensor ', KB.is_keras_tensor(gauss_flatten) )
+    # print('    Shape of L2 normalized tensor: ', KB.int_shape(gauss_norm), 'Keras tensor ', KB.is_keras_tensor(gauss_norm) )
+    # print('    complete')
+
     return  gauss_sum    # [gauss_sum, gauss_scatt, means, covar]
     
 
@@ -421,66 +428,60 @@ class PCNLayerTF(KE.Layer):
         print('     gt_bboxes.shape      :',  inputs[4].shape, type(inputs[4])) 
         mrcnn_class , mrcnn_bbox,  output_rois, gt_class_ids, gt_bboxes = inputs
 
-        pred_tensor , pred_cls_cnt  = build_predictions_tf(mrcnn_class, mrcnn_bbox, output_rois, self.config)
+        pred_tensor , _  = build_predictions_tf(mrcnn_class, mrcnn_bbox, output_rois, self.config)
+        gt_tensor   , _  = build_ground_truth_tf(gt_class_ids, gt_bboxes, self.config)  
+
         # print('     pred_tensor : ', pred_tensor.shape, '  pred_cls_cnt: ', pred_cls_cnt.shape)
-
-        gt_tensor   , gt_cls_cnt    = build_ground_truth_tf(gt_class_ids, gt_bboxes, self.config)  
         # print('     gt_tensor  : ', gt_tensor.shape   , '  gt_cls_cnt  : ', gt_cls_cnt.shape)
-
         # print(' Build Gaussian np for detected rois =========================')    
         # pred_scatter, pred_gaussian, pred_means, pred_covar  = build_gaussian_tf(pred_tensor, pred_cls_cnt, self.config)
-        pred_gaussian   = build_gaussian_tf(pred_tensor, pred_cls_cnt, self.config)
-        # print('   Output build_gaussian_tf (predicitons)')
-        # print('     pred_gaussian : ', pred_gaussian.shape)
-        # print('     pred_scatter  : ', pred_scatter.shape)
-        # print('     means         : ', pred_means.shape  , '    pred_covar    : ', pred_covar.shape)
-        
-        # print(' Build Gaussian np for ground_truth ==========================')    
-        # gt_gaussian, gt_scatter, gt_means, gt_covar  = build_gaussian_tf(gt_tensor , gt_cls_cnt, self.config)
-        gt_gaussian     = build_gaussian_tf(gt_tensor , gt_cls_cnt, self.config)
-        print('   Output build_gaussian_tf (ground truth)')
-        print('     gt_gaussian : ', gt_gaussian.shape)
-        # print('     gt_scatter  : ', gt_scatter.shape)
-        # print('     gt_means    : ', gt_means.shape  , '    gt_covar    : ', gt_covar.shape)
-        
-        return [ 
-                  pred_gaussian
-                # , pred_scatter
-                # , pred_means 
-                # , pred_covar
-                , pred_tensor  
-                , pred_cls_cnt
 
-                , gt_gaussian  
-                # , gt_scatter   
-                # , gt_means 
-                # , gt_covar
-                , gt_tensor    
-                , gt_cls_cnt
-                ]
+        pred_gaussian   = build_gaussian_tf(pred_tensor, self.config, names = ['pred_gaussian'])
+        gt_gaussian     = build_gaussian_tf(gt_tensor  , self.config, names = ['gt_gaussian'])
+            
+        print('\n    Output build_gaussian_tf ')
+        print('     pred_gaussian : ', pred_gaussian.shape, 'Keras tensor ', KB.is_keras_tensor(pred_gaussian) )
+        print('     gt_gaussian   : ', gt_gaussian.shape, 'Keras tensor ', KB.is_keras_tensor(gt_gaussian) )
+        
+        return [ pred_gaussian , gt_gaussian ]
+        
+        # , pred_scatter  # , pred_means # , pred_covar  # , pred_tensor   # , pred_cls_cnt
+        # , gt_scatter    # , gt_means   # , gt_covar    # , gt_tensor     # , gt_cls_cnt
 
 
         
     def compute_output_shape(self, input_shape):
         # may need to change dimensions of first return from IMAGE_SHAPE to MAX_DIM
         return [
-            (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # pred_gaussian
+                (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # pred_gaussian
+              , (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # gt_gaussian
+               ]
+
+          
+##----------------------------------------------------------------------------------------------------------------------          
+##----------------------------------------------------------------------------------------------------------------------          
+##----------------------------------------------------------------------------------------------------------------------          
+##----------------------------------------------------------------------------------------------------------------------          
+##----------------------------------------------------------------------------------------------------------------------          
+          
+          
+          
           # , (None, self.config.NUM_CLASSES, self.config.TRAIN_ROIS_PER_IMAGE, \
                                             # self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1])    # pred_scatter
           # ,  (None, self.config.NUM_CLASSES, self.config.TRAIN_ROIS_PER_IMAGE, 2)                     # means
           # ,  (None, self.config.NUM_CLASSES, self.config.TRAIN_ROIS_PER_IMAGE, 2)                     # covar
           
-          ,  (None, self.config.NUM_CLASSES, self.config.TRAIN_ROIS_PER_IMAGE, 8)                       # pred_tensors 
-          ,  (None, self.config.NUM_CLASSES)                                                            # pred_cls_cnt
+          # ,  (None, self.config.NUM_CLASSES, self.config.TRAIN_ROIS_PER_IMAGE, 8)                       # pred_tensors 
+          # ,  (None, self.config.NUM_CLASSES)                                                            # pred_cls_cnt
 
-          ,  (None, self.config.NUM_CLASSES, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1])     # gt_gaussian
+          #	,  (None, self.config.NUM_CLASSES, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1])     # gt_gaussian
           # ,  (None, self.config.NUM_CLASSES, self.config.DETECTION_MAX_INSTANCES, \
                                             # self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1])    # gt_scatter
           # ,  (None, self.config.NUM_CLASSES, self.config.DETECTION_MAX_INSTANCES, 2)                  # gt_means
           # ,  (None, self.config.NUM_CLASSES, self.config.DETECTION_MAX_INSTANCES, 2)                  # gt_covar
-          ,  (None, self.config.NUM_CLASSES, self.config.DETECTION_MAX_INSTANCES, 8)                    # gt_tensor 
-          ,  (None, self.config.NUM_CLASSES)                                                            # gt_cls_cnt
+          # ,  (None, self.config.NUM_CLASSES, self.config.DETECTION_MAX_INSTANCES, 8)                    # gt_tensor 
+          # ,  (None, self.config.NUM_CLASSES)                                                            # gt_cls_cnt
 
-            ]
+       #     ]
  
        

@@ -43,17 +43,17 @@ def overlaps_graph(boxes1, boxes2):
     # TF doesn't have an equivalent to np.repeat() so simulate it
     # using tf.tile() and tf.reshape.
     
-    # print('>>> detection_targets_graph - calculate Overlaps_graph')    
-    # print('     overlaps_graph: shape of boxes1 before reshape: ',boxes1.shape)  # (?,?)
-    # print('     overlaps_graph: shape of boxes2 before reshape: ',boxes2.shape)  # (?,?)
+    # print('\t>>> detection_targets_graph - calculate Overlaps_graph')    
+    # print('\t     overlaps_graph: shape of boxes1 before reshape: ',boxes1.shape)  # (?,?)
+    # print('\t     overlaps_graph: shape of boxes2 before reshape: ',boxes2.shape)  # (?,?)
     
     # tf.expand_dims(boxes1, 1) : makes b1:[1, batch_size, proposal_count_sz, 4] 
     
     b1 = tf.reshape(tf.tile(tf.expand_dims(boxes1, 1), [1, 1, tf.shape(boxes2)[0]]), [-1, 4])
 
     b2 = tf.tile(boxes2, [tf.shape(boxes1)[0], 1])
-    print('     overlaps_graph: shape of boxes1 after reshape: ',b1.shape)  # (?,4)
-    print('     overlaps_graph: shape of boxes2 after reshape: ',b2.shape)  # (?,4)
+    # print('\t     overlaps_graph: shape of boxes1 after reshape: ',b1.shape)  # (?,4)
+    # print('\t     overlaps_graph: shape of boxes2 after reshape: ',b2.shape)  # (?,4)
 
 
     # 2. Compute intersections
@@ -76,7 +76,7 @@ def overlaps_graph(boxes1, boxes2):
     # 4. Compute IoU and reshape to [boxes1, boxes2]
     iou = intersection / union
     overlaps = tf.reshape(iou, [tf.shape(boxes1)[0], tf.shape(boxes2)[0]])
-    print('    Overlaps_graph(): Shape of output overlaps', tf.shape(overlaps))
+    # print('\t     Overlaps_graph(): Shape of output overlaps', tf.shape(overlaps), overlaps.get_shape())
     return overlaps
 
 
@@ -170,46 +170,49 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     roi_iou_max          = tf.reduce_max(overlaps, axis=1)
 
     # Determine postive and negative ROIs
-    # 1. Positive ROIs are those with >= 0.5 IoU with a GT box
+    # 1. Identify ROIs with a IoU >= 05 overlap with gt_boxes and store 
+    #    indices into positive_indices
     positive_roi_bool     = (roi_iou_max >= 0.5)
     positive_indices      = tf.where(positive_roi_bool)[:, 0]
 
-    # 2. Negative ROIs are those with < 0.5 with every GT box. Skip crowds.
+    # 2. Determine Negative ROIs 
+    #    those with < 0.5 with every GT box and are not crowds bboxes 
     negative_indices      = tf.where(tf.logical_and(roi_iou_max < 0.5, no_crowd_bool))[:, 0]
 
-    # Subsample ROIs. Aim for 33% positive (config.ROI_POSITIVE_RATIO = 0.33)
-    # Positive ROIs   33% of config.TRAIN_ROIS_PER_IMAGE ~  11
+    # 3. Subsample positive ROIs. Aim for 33% positive (config.ROI_POSITIVE_RATIO = 0.33)
+    #    Positive ROIs   33% of config.TRAIN_ROIS_PER_IMAGE ~  11
     positive_count        = int(config.TRAIN_ROIS_PER_IMAGE * config.ROI_POSITIVE_RATIO)
     positive_indices      = tf.random_shuffle(positive_indices)[:positive_count]
     positive_count        = tf.shape(positive_indices)[0]
     
-    # Negative ROIs. Add enough to maintain positive:negative ratio.
-    # negative_count = int((positive_count / config.ROI_POSITIVE_RATIO) - positive_count)
-        
+    # 4.  Negative ROIs. Add enough to maintain positive:negative ratio .
+    #     negative_count = int((positive_count / config.ROI_POSITIVE_RATIO) - positive_count)
     r = 1.0 / config.ROI_POSITIVE_RATIO
     negative_count        = tf.cast(r * tf.cast(positive_count, tf.float32), tf.int32) - positive_count
     negative_indices      = tf.random_shuffle(negative_indices)[:negative_count]
     
-    # Gather selected ROIs
+    # 5.   Gather selected positive and negative ROIs
     positive_rois         = tf.gather(proposals, positive_indices)
     negative_rois         = tf.gather(proposals, negative_indices)
 
-    # Assign positive ROIs to GT boxes.
+    # 6.   Assign positive ROIs to GT boxes.
+    #      roi_gt_box_assignment shows for each positive overlap, which class has the maximum overlap
     positive_overlaps     = tf.gather(overlaps, positive_indices)
     roi_gt_box_assignment = tf.argmax(positive_overlaps, axis=1)
     roi_gt_boxes          = tf.gather(gt_boxes    , roi_gt_box_assignment)
     roi_gt_class_ids      = tf.gather(gt_class_ids, roi_gt_box_assignment)
 
-    # Compute bbox refinement for positive ROIs
+    # print('     shape of positive overlaps is :', positive_overlaps.get_shape())
+
+    # 7.   Compute bbox refinement (difference b/w postitive rois and gt_boxes)
+    #      for positive ROIs
     deltas  = utils.box_refinement_graph(positive_rois, roi_gt_boxes)
     deltas /= config.BBOX_STD_DEV
 
-    # Assign positive ROIs to GT masks
-    # transpose masks from [h, w, N] to [N, height, width] and add 4th dim at end [N, height, width, 1]
-    
+    # 8.   Assign positive ROIs to GT masks
+    #      transpose masks from [h, w, N] to [N, height, width] and add 4th dim at end [N, height, width, 1]
+    #      Pick the right mask for each ROI
     transposed_masks = tf.expand_dims(tf.transpose(gt_masks, [2, 0, 1]), -1)
-    
-    # Pick the right mask for each ROI
     roi_masks = tf.gather(transposed_masks, roi_gt_box_assignment)
 
     # Compute mask targets
@@ -247,20 +250,21 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     N                = tf.shape(negative_rois)[0]
     P                = tf.maximum(config.TRAIN_ROIS_PER_IMAGE - tf.shape(rois)[0], 0)
     rois             = tf.pad(rois            , [(0, P), (0, 0)])
-    # print(' roi_gt_boxes :  ' , tf.shape(roi_gt_boxes) )
-    # print(' P:  ' , P,  ' N :    ', N)
+    
     roi_gt_boxes     = tf.pad(roi_gt_boxes    , [(0, N + P), (0, 0)])
     roi_gt_class_ids = tf.pad(roi_gt_class_ids, [(0, N + P)])
     deltas           = tf.pad(deltas          , [(0, N + P), (0, 0)])
     masks            = tf.pad(masks           , [[0, N + P], (0, 0), (0, 0)])
     
-    
-    # print('     roi.shape             :',  rois.shape, tf.shape(roi_gt_class_ids))
+    # print(' roi_gt_boxes :  ' , tf.shape(roi_gt_boxes) )
+    # print(' P:  ' , P,  ' N :    ', N)   
+    # print('     roi.shape             :',  rois.shape            , tf.shape(rois))
     # print('     roi_gt_class_ids.shape:',  roi_gt_class_ids.shape, tf.shape(roi_gt_class_ids))
-    # print('     deltas.shape          :',  roi_gt_class_ids.shape, tf.shape(roi_gt_class_ids))
-    # print('     masks.shape           :',  masks.shape, tf.shape(masks))
+    # print('     deltas.shape          :',  deltas.shape          , tf.shape(deltas))
+    # print('     masks.shape           :',  masks.shape           , tf.shape(masks))
+    # print('     roi_gt_boxes.shape    :',  roi_gt_boxes.shape    , tf.shape(roi_gt_boxes))
     
-    return rois, roi_gt_class_ids, deltas, masks
+    return rois, roi_gt_class_ids,  deltas, masks, roi_gt_boxes
 
 
 class DetectionTargetLayer(KE.Layer):
@@ -270,8 +274,9 @@ class DetectionTargetLayer(KE.Layer):
 
     Inputs:
     -------    
-    proposals:          [batch, N, (y1, x1, y2, x2)] in normalized coordinates. Might
-                        be zero padded if there are not enough proposals.
+    proposals:          [batch, N, (y1, x1, y2, x2)] in normalized coordinates.
+                          Proposal bboxes generated by RPN
+                          Might be zero padded if there are not enough proposals.
     gt_class_ids:       [batch, MAX_GT_INSTANCES] Integer class IDs.
     gt_boxes:           [batch, MAX_GT_INSTANCES, (y1, x1, y2, x2)] in normalized coordinates.
     gt_masks:           [batch, height, width, MAX_GT_INSTANCES] of boolean type
@@ -301,7 +306,7 @@ class DetectionTargetLayer(KE.Layer):
         self.config = config
 
     def call(self, inputs):
-        print('>>> Detection Target Layer : call ', type(inputs), len(inputs))
+        print('    Detection Target Layer : call() ', type(inputs), len(inputs))
         print('     proposals.shape    :',  inputs[0].shape, type(inputs[0]))
         print('     gt_class_ids.shape :',  inputs[1].shape, type(inputs[1])) 
         print('     gt_bboxes.shape    :',  inputs[2].shape, type(inputs[2])) 
@@ -314,25 +319,30 @@ class DetectionTargetLayer(KE.Layer):
         # Slice the batch and run a graph for each slice    
         # TODO: Rename target_bbox to target_deltas for clarity
         
-        names = ["rois", "target_class_ids", "target_bbox", "target_mask"]
+        names = ["rois", "target_class_ids", "target_bbox", "target_mask", "roi_gt_boxes"]
+        
         outputs = utils.batch_slice([proposals, gt_class_ids, gt_boxes, gt_masks],             # inputs 
-                   lambda w, x, y, z: detection_targets_graph(w, x, y, z, self.config),        # batch function 
-                   self.config.IMAGES_PER_GPU,                                                 # batch_size, name
-                   names=names)                                   
-        print('>>> Detection Target Layer : return call ', type(outputs) , len(outputs))                    
+                                    lambda w, x, y, z: detection_targets_graph(w, x, y, z, self.config),        # batch function 
+                                    self.config.IMAGES_PER_GPU,                                                 # batch_size, name
+                                    names=names)                  
+                   
+        print('\n    Detection Target Layer : return ', type(outputs) , len(outputs))                    
         for i,out in enumerate(outputs):
             print('     output {}  shape {}  type {} '.format(i, out.shape, type(out)))    
+
         return outputs
 
     def compute_output_shape(self, input_shape):
         return [
-            (None, self.config.TRAIN_ROIS_PER_IMAGE, 4),  # rois
-            (None, 1),  # class_ids
-            (None, self.config.TRAIN_ROIS_PER_IMAGE, 4),  # deltas
-            (None, self.config.TRAIN_ROIS_PER_IMAGE, self.config.MASK_SHAPE[0], self.config.MASK_SHAPE[1])             # masks
+            (None, self.config.TRAIN_ROIS_PER_IMAGE, 4),                                                        # rois
+            (None, 1),                                                                                          # class_ids
+            (None, self.config.TRAIN_ROIS_PER_IMAGE, 4),                                                        # deltas
+            (None, self.config.TRAIN_ROIS_PER_IMAGE, self.config.MASK_SHAPE[0], self.config.MASK_SHAPE[1]),     # masks
+            (None, self.config.TRAIN_ROIS_PER_IMAGE, 4)                                                         # roi_gt_bboxes
+
         ]
 
     def compute_mask(self, inputs, mask=None):
-        return [None, None, None, None]
+        return [None, None, None, None, None]
 
 

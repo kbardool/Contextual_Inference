@@ -494,4 +494,4 @@ def plot_gaussian( Z, title = 'My figure' ):
     fig.colorbar(surf, shrink=0.5, aspect=5)
     
     plt.show()
-    
+    # plt.savefig('sample.png')
