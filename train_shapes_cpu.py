@@ -10,15 +10,6 @@
 # The code of the *Shapes* dataset is included below. It generates images on the fly, so it doesn't require downloading any data. And it can generate images of any size, so we pick a small image size to train faster. 
 # 
 
-# In[2]:
-
-
-# from IPython.core.display import display, HTML
-# display(HTML("<style>.container { width:90% !important; }</style>"))
-# get_ipython().run_line_magic('matplotlib', 'inline')
-# get_ipython().run_line_magic('load_ext', 'autoreload')
-# get_ipython().run_line_magic('autoreload', '2')
-
 import os
 import sys
 import random
