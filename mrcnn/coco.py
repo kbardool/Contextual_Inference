@@ -30,7 +30,6 @@ Usage: import the module (see Jupyter notebooks for examples), or run from
 import os
 import time
 import numpy as np
-print(' breakpoint 1')
 # Download and install the Python COCO tools from https://github.com/waleedka/coco
 # That's a fork from the original https://github.com/pdollar/coco with a bug
 # fix for Python 3.
@@ -38,8 +37,6 @@ print(' breakpoint 1')
 # If the PR is merged then use the original repo.
 # Note: Edit PythonAPI/Makefile and replace "python" with "python3".
 from pycocotools.coco import COCO
-print(' breakpoint 2')
-
 from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as maskUtils
 
@@ -47,16 +44,6 @@ from   mrcnn.config import Config
 import mrcnn.utils as utils
 import mrcnn.model as modellib
 import mrcnn.dataset as dataset
-
-# Root directory of the project
-ROOT_DIR = os.getcwd()
-
-# Path to trained weights file
-COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
-
-# Directory to save logs and model checkpoints, if not provided
-# through the command line argument --logs
-DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 
 
 ############################################################
@@ -69,6 +56,7 @@ class CocoConfig(Config):
     to the COCO dataset.
     """
     # Give the configuration a recognizable name
+    print(' Initialize CocoConfig object - super')
     NAME = "coco"
 
     # We use a GPU with 12GB memory, which can fit two images.
@@ -326,137 +314,3 @@ def evaluate_coco(model, dataset, coco, eval_type="bbox", limit=0, image_ids=Non
     print("Total time: ", time.time() - t_start)
 
 
-############################################################
-#  Training
-############################################################
-
-
-if __name__ == '__main__':
-    import argparse
-
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(
-        description='Train Mask R-CNN on MS COCO.')
-    parser.add_argument("command",
-                        metavar="<command>",
-                        help="'train' or 'evaluate' on MS COCO")
-    parser.add_argument('--dataset', required=True,
-                        metavar="/path/to/coco/",
-                        help='Directory of the MS-COCO dataset')
-    parser.add_argument('--model', required=True,
-                        metavar="/path/to/weights.h5",
-                        help="Path to weights .h5 file or 'coco'")
-    parser.add_argument('--logs', required=False,
-                        default=DEFAULT_LOGS_DIR,
-                        metavar="/path/to/logs/",
-                        help='Logs and checkpoints directory (default=logs/)')
-    parser.add_argument('--limit', required=False,
-                        default=500,
-                        metavar="<image count>",
-                        help='Images to use for evaluation (defaults=500)')
-    args = parser.parse_args()
-    print("Command: ", args.command)
-    print("Model: ", args.model)
-    print("Dataset: ", args.dataset)
-    print("Logs: ", args.logs)
-
-    # Configurations
-    if args.command == "train":
-        config = CocoConfig()
-    else:
-        class InferenceConfig(CocoConfig):
-            # Set batch size to 1 since we'll be running inference on
-            # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
-            GPU_COUNT = 1
-            IMAGES_PER_GPU = 1
-            DETECTION_MIN_CONFIDENCE = 0
-        config = InferenceConfig()
-    config.display()
-
-    import tensorflow as tf
-    from keras.backend.tensorflow_backend import set_session
-    # tf_config = tf.ConfigProto()
-    # tf_config.gpu_options.per_process_gpu_memory_fraction = 0.55
-    # set_session(tf.Session(config=tf_config))
-    
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.55)
-    set_session(tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)))
-    
-    # Create model
-    if args.command == "train":
-        model = modellib.MaskRCNN(mode="training", config=config,
-                                  model_dir=args.logs)
-    else:
-        model = modellib.MaskRCNN(mode="inference", config=config,
-                                  model_dir=args.logs)
-
-    # Select weights file to load
-    #-----------------------------------------------------
-    if args.model.lower() == "coco":
-        model_path = COCO_MODEL_PATH
-    elif args.model.lower() == "last":
-        # Find last trained weights
-        model_path = model.find_last()[1]
-    elif args.model.lower() == "imagenet":
-        # Start from ImageNet trained weights
-        model_path = model.get_imagenet_weights()
-    else:
-        model_path = args.model
-
-    # Load weights
-    #-----------------------------------------------------
-    print("Loading weights ", model_path)
-    model.load_weights(model_path, by_name=True)
-
-    # Train or evaluate
-    #-----------------------------------------------------
-    if args.command == "train":
-        # Training dataset. Use the training set and 35K from the
-        # validation set, as as in the Mask RCNN paper.
-        dataset_train = CocoDataset()
-        dataset_train.load_coco(args.dataset, "train")
-        dataset_train.load_coco(args.dataset, "val35k")
-        dataset_train.prepare()
-
-        # Validation dataset
-        dataset_val = CocoDataset()
-        dataset_val.load_coco(args.dataset, "minival")
-        dataset_val.prepare()
-
-        # *** This training schedule is an example. Update to your needs ***
-
-        # Training - Stage 1
-        print("Training network heads")
-        model.train(dataset_train, dataset_val,
-                    learning_rate=config.LEARNING_RATE,
-                    epochs=40,
-                    layers='heads')
-
-        # Training - Stage 2
-        # Finetune layers from ResNet stage 4 and up
-        print("Fine tune Resnet stage 4 and up")
-        model.train(dataset_train, dataset_val,
-                    learning_rate=config.LEARNING_RATE,
-                    epochs=120,
-                    layers='4+')
-
-        # Training - Stage 3
-        # Fine tune all layers
-        print("Fine tune all layers")
-        model.train(dataset_train, dataset_val,
-                    learning_rate=config.LEARNING_RATE / 10,
-                    epochs=160,
-                    layers='all')
-    #-----------------------------------------------------
-    # Evaluate 
-    #-----------------------------------------------------
-    elif args.command == "evaluate":
-        # Validation dataset
-        dataset_val = CocoDataset()
-        coco = dataset_val.load_coco(args.dataset, "minival", return_coco=True)
-        dataset_val.prepare()
-        print("Running COCO evaluation on {} images.".format(args.limit))
-        evaluate_coco(model, dataset_val, coco, "bbox", limit=int(args.limit))
-    else:
-        print("'{}' is not recognized. "
-              "Use 'train' or 'evaluate'".format(args.command))

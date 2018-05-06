@@ -43,9 +43,9 @@ def resize_images_bilinear(X, height_factor=1, width_factor=1, target_height=Non
 
         else:
             new_shape = tf.shape(X)[1:3]
-            print('     new_shape (2): ' , new_shape.get_shape(), new_shape.eval())                        
+            print('     new_shape (2): ' , new_shape.get_shape(), new_shape.shape)                        
             new_shape *= tf.constant(np.array([height_factor, width_factor]).astype('int32'))
-            print('     new_shape (3): ' , new_shape.get_shape(), new_shape.eval())                        
+            print('     new_shape (3): ' , new_shape.get_shape(), new_shape.shape)                        
         
         X = tf.image.resize_bilinear(X, new_shape)
         print('     X after image.resize_bilinear: ' , X.get_shape())            

@@ -29,6 +29,7 @@ import keras.initializers as KI
 import keras.engine  as KE
 import keras.models  as KM
 import pprint 
+pp = pprint.PrettyPrinter(indent=2, width=100)
 
 # def get_layer_output(model, output_layer, model_input, training_flag = True):
     # _mrcnn_class = KB.function([model.input]+[KB.learning_phase()],
@@ -37,30 +38,42 @@ import pprint
     # return output
     
     
-def get_layer_output_1(model, model_input, output_layer, training_flag = True):
+def get_layer_output_1(model, model_input, output_layer, training_flag = True, verbose = True):
     _my_input = model_input + [training_flag]
-    for ind, i in enumerate(_my_input):
-        print('model_input {}  type {}'.format(ind, type(i)))
-
-    _mrcnn_class = KB.function(model.input, [model.layers[output_layer].output])
-    
-    output = _mrcnn_class(_my_input)[0]                                
-    return output
-
-def get_layer_output_2(model, model_input, training_flag = True, verbose = True):
     if verbose: 
         print('/* Inputs */')
-        for i, (name,inp) in enumerate(zip(model.input_names, model_input)):
-            print('Input {}:  ({:24}) \t  Input shape: {}'.format(i, name, inp.shape))
-
-    _mrcnn_class = KB.function(model.input , model.output)
-    output = _mrcnn_class(model_input)                  
+        for i, (input_layer,input) in enumerate(zip(model.input, model_input)):
+            print('Input {:2d}:  ({:40s}) \t  Input shape: {}'.format(i, input_layer.name, input.shape))
+            
+    model_outputs = [model.outputs[x] for x in output_layer]
+    
+    _mrcnn_class = KB.function(model.input, model_outputs)   
+    output = _mrcnn_class(model_input)                    
     
     if verbose:
         print('\n/* Outputs */')    
-        for i, (name,out) in enumerate (zip (model.output_names,output)):
-            print('Output {}: ({:24}) \t  Output shape: {}'.format(i, name, out.shape))
-    return output    
+        for i, output_layer, output in zip (output_layer, model_outputs , output):
+            print('Output {:2d}: ({:40s}) \t  Output shape: {}'.format(i, output_layer.name, output.shape))
+
+    return output
+
+    
+    
+def get_layer_output_2(model, model_input, training_flag = True, verbose = True):
+    if verbose: 
+        print('/* Inputs */')
+        for i, (input_layer,input) in enumerate(zip(model.input, model_input)):
+            print('Input {:2d}:  ({:40s}) \t  Input shape: {}'.format(i, input_layer.name, input.shape))
+
+    get_output = KB.function(model.input , model.outputs)
+    model_output = get_output(model_input)                  
+    
+    print(type(model_output))
+    if verbose:
+        print('\n/* Outputs */')    
+        for i, (output_layer, output) in enumerate (zip (model.outputs , model_output)):
+            print('Output {:2d}: ({:40s}) \t  Output shape: {}'.format(i, output_layer.name, output.shape))
+    return model_output    
 
     
 class MyCallback(keras.callbacks.Callback):

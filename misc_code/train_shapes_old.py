@@ -30,41 +30,40 @@ from mrcnn.model import log
 import mrcnn.shapes as shapes
 from mrcnn.dataset import Dataset 
 
+# Root directory of the project
+ROOT_DIR = os.getcwd()
+MODEL_PATH = '../../Models'
+# Directory to save logs and trained model
+MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_logs")
+
+# Path to COCO trained weights
+COCO_MODEL_PATH = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
+RESNET_MODEL_PATH = os.path.join(MODEL_PATH,"resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
 import tensorflow as tf
 import keras
 print("Tensorflow Version: {}   Keras Version : {} ".format(tf.__version__,keras.__version__))
 
-##------------------------------------------------------------------------------------
-## setup project directories
-##------------------------------------------------------------------------------------
-import mrcnn.project_paths
 
-#--------------------------------------------------------------------------
 # ## Configurations
-#--------------------------------------------------------------------------
-config = shapes.ShapesConfig()
-config.IMAGES_PER_GPU = 2
-config.BATCH_SIZE = 2               #Batch size is 2 (# GPUs * images/GPU).
 
-config.STEPS_PER_EPOCH = 3
+config = shapes.ShapesConfig()
 config.display() 
 
 
 # ## Notebook Preferences
-# def get_ax(rows=1, cols=1, size=8):
-    # """Return a Matplotlib Axes array to be used in
-    # all visualizations in the notebook. Provide a
-    # central point to control graph sizes.
+def get_ax(rows=1, cols=1, size=8):
+    """Return a Matplotlib Axes array to be used in
+    all visualizations in the notebook. Provide a
+    central point to control graph sizes.
     
-    # Change the default size attribute to control the size
-    # of rendered images
-    # """
-    # _, ax = plt.subplots(rows, cols, figsize=(size*cols, size*rows))
-    # return ax
+    Change the default size attribute to control the size
+    of rendered images
+    """
+    _, ax = plt.subplots(rows, cols, figsize=(size*cols, size*rows))
+    return ax
 
-#--------------------------------------------------------------------------
+
 # ## Dataset
-#--------------------------------------------------------------------------
 # 
 # Create a synthetic dataset
 # 
@@ -88,18 +87,16 @@ dataset_val.prepare()
 
 # In[29]:
 
-#--------------------------------------------------------------------------
-# Load and display random samples
-#--------------------------------------------------------------------------
-# image_ids = np.random.choice(dataset_train.image_ids, 1)
-# for image_id in image_ids:
-    # image = dataset_train.load_image(image_id)
-    # mask, class_ids = dataset_train.load_mask(image_id)
-    # visualize.display_top_masks(image, mask, class_ids, dataset_train.class_names)
 
-#--------------------------------------------------------------------------
+# Load and display random samples
+image_ids = np.random.choice(dataset_train.image_ids, 12)
+#for image_id in image_ids:
+#    image = dataset_train.load_image(image_id)
+#    mask, class_ids = dataset_train.load_mask(image_id)
+#    visualize.display_top_masks(image, mask, class_ids, dataset_train.class_names)
+
+
 # ## Create Model
-#--------------------------------------------------------------------------
 # import importlib
 # importlib.reload(model)
 # Create model in training mode
@@ -115,9 +112,7 @@ print(MODEL_DIR)
 print(model.find_last())
 
 
-#--------------------------------------------------------------------------
-# Load Weights -- Which weights to start with?
-#--------------------------------------------------------------------------
+# Which weights to start with?
 init_with = "last"  # imagenet, coco, or last
 
 if init_with == "imagenet":
@@ -134,13 +129,11 @@ elif init_with == "last":
     # Load the last model you trained and continue training
     loc= model.load_weights(model.find_last()[1], by_name=True)
 
-#--------------------------------------------------------------------------
+
 # ## Training
-#--------------------------------------------------------------------------
+# 
 # Train in two stages:
-# 1. Only the heads. Here we're freezing all the backbone layers and training only the 
-#    randomly initialized layers (i.e. the ones that we didn't use pre-trained weights from MS COCO). 
-#    To train only the head layers, pass `layers='heads'` to the `train()` function.
+# 1. Only the heads. Here we're freezing all the backbone layers and training only the randomly initialized layers (i.e. the ones that we didn't use pre-trained weights from MS COCO). To train only the head layers, pass `layers='heads'` to the `train()` function.
 # 
 # 2. Fine-tune all layers. For this simple example it's not necessary, but we're including it to show the process. Simply pass `layers="all` to train all layers.
 
@@ -151,31 +144,27 @@ elif init_with == "last":
 model.train(dataset_train, dataset_val, 
             learning_rate=config.LEARNING_RATE, 
             epochs=1, 
-            batch_size = 2,
-            steps_per_epoch = 5,
             layers='heads')
 
-#--------------------------------------------------------------------------
+
 # Fine tune all layers
-#--------------------------------------------------------------------------
 # Passing layers="all" trains all layers. You can also 
 # pass a regular expression to select which layers to
 # train by name pattern.
-# model.train(dataset_train, dataset_val, 
-            # learning_rate=config.LEARNING_RATE / 10,
-            # epochs=2, 
-            # layers="all")
-#--------------------------------------------------------------------------
+model.train(dataset_train, dataset_val, 
+            learning_rate=config.LEARNING_RATE / 10,
+            epochs=2, 
+            layers="all")
+
 # Save weights
-#--------------------------------------------------------------------------
 # Typically not needed because callbacks save after every epoch
 # Uncomment to save manually
-# model_path = os.path.join(MODEL_DIR, "mask_rcnn_shapes.h5")
-# model.keras_model.save_weights(model_path)
+model_path = os.path.join(MODEL_DIR, "mask_rcnn_shapes.h5")
+model.keras_model.save_weights(model_path)
 
-#--------------------------------------------------------------------------
+
 # ## Detection
-#--------------------------------------------------------------------------
+
 
 # class InferenceConfig(ShapesConfig):
     # GPU_COUNT = 1
@@ -198,22 +187,21 @@ model.train(dataset_train, dataset_val,
 # print("Loading weights from ", model_path)
 # model.load_weights(model_path, by_name=True)
 
-##--------------------------------------------------------------------------
-## Test on a random image
-##--------------------------------------------------------------------------
-image_id = random.choice(dataset_val.image_ids)
 
-original_image, image_meta, gt_class_id, gt_bbox, gt_mask =  \
-            load_image_gt(dataset_val, inference_config, image_id, use_mini_mask=False)
+# Test on a random image
+# image_id = random.choice(dataset_val.image_ids)
 
-log("original_image ", original_image)
-log("image_meta     ", image_meta)
-log("gt_class_id    ", gt_bbox)
-log("gt_bbox        ", gt_bbox)
-log("gt_mask        ", gt_mask)
+# original_image, image_meta, gt_class_id, gt_bbox, gt_mask =  \
+            # modellib.load_image_gt(dataset_val, inference_config, image_id, use_mini_mask=False)
 
-visualize.display_instances(original_image, gt_bbox, gt_mask, gt_class_id, 
-                            dataset_train.class_names, figsize=(8, 8))
+# log("original_image", original_image)
+# log("image_meta", image_meta)
+# log("gt_class_id", gt_bbox)
+# log("gt_bbox", gt_bbox)
+# log("gt_mask", gt_mask)
+
+# visualize.display_instances(original_image, gt_bbox, gt_mask, gt_class_id, 
+                            # dataset_train.class_names, figsize=(8, 8))
 
 
 # results = model.detect([original_image], verbose=1)
@@ -221,9 +209,9 @@ visualize.display_instances(original_image, gt_bbox, gt_mask, gt_class_id,
 # visualize.display_instances(original_image, r['rois'], r['masks'], r['class_ids'], 
                             # dataset_val.class_names, r['scores'], ax=get_ax())
 
-#--------------------------------------------------------------------------
+
 # ## Evaluation
-#--------------------------------------------------------------------------
+
 # Compute VOC-Style mAP @ IoU=0.5
 # Running on 10 images. Increase for better accuracy.
 # image_ids = np.random.choice(dataset_val.image_ids, 10)

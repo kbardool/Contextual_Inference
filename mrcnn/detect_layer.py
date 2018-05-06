@@ -7,29 +7,31 @@ Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
 
-import os
-import sys
-import glob
-import random
-import math
-import datetime
-import itertools
-import json
-import re
-import logging
-# from collections import OrderedDict
+# import os
+# import sys
+# import glob
+# import random
+# import math
+# import datetime
+# import itertools
+# import json
+# import re
+# import logging
 import numpy as np
-# import scipy.misc
 import tensorflow as tf
 # import keras
+# import scipy.misc
 # import keras.backend as K
+# import keras.models as KM
 # import keras.layers as KL
 # import keras.initializers as KI
-import keras.engine as KE
-# import keras.models as KM
-sys.path.append('..')
-import mrcnn.utils as utils
+# from collections import OrderedDict
 
+import keras.engine as KE
+
+# sys.path.append('..')
+# import mrcnn.utils as utils
+from mrcnn.utils import apply_box_deltas, non_max_suppression
 
 ############################################################
 #  Detection Layer
@@ -66,7 +68,7 @@ def refine_detections(rois, probs, deltas, window, config):
     detections      [N, (y1, x1, y2, x2, class_id, score)]
     '''
     
-    # Class IDs per ROI
+    # find Class IDs with higest scores for each per ROI
     class_ids       = np.argmax(probs, axis=1)
     
     # Class probability of the top class of each ROI
@@ -77,7 +79,7 @@ def refine_detections(rois, probs, deltas, window, config):
     
     # Apply bounding box deltas
     # Shape: [boxes, (y1, x1, y2, x2)] in normalized coordinates
-    refined_rois    = utils.apply_box_deltas(rois, deltas_specific * config.BBOX_STD_DEV)
+    refined_rois    = apply_box_deltas(rois, deltas_specific * config.BBOX_STD_DEV)
     
     # Convert coordiates to image domain
     # TODO: better to keep them normalized until later
@@ -101,27 +103,27 @@ def refine_detections(rois, probs, deltas, window, config):
 
     # Apply per-class NMS
     pre_nms_class_ids = class_ids[keep]
-    pre_nms_scores = class_scores[keep]
-    pre_nms_rois = refined_rois[keep]
-    nms_keep = []
+    pre_nms_scores    = class_scores[keep]
+    pre_nms_rois      = refined_rois[keep]
+    nms_keep          = []
     
     for class_id in np.unique(pre_nms_class_ids):
         # Pick detections of this class
         ixs = np.where(pre_nms_class_ids == class_id)[0]
         # Apply NMS
-        class_keep = utils.non_max_suppression(
-            pre_nms_rois[ixs], pre_nms_scores[ixs],
-            config.DETECTION_NMS_THRESHOLD)
+        class_keep = non_max_suppression(pre_nms_rois[ixs], 
+                                         pre_nms_scores[ixs],
+                                         config.DETECTION_NMS_THRESHOLD)
         # Map indicies
         class_keep = keep[ixs[class_keep]]
-        nms_keep = np.union1d(nms_keep, class_keep)
+        nms_keep   = np.union1d(nms_keep, class_keep)
     
     keep = np.intersect1d(keep, nms_keep).astype(np.int32)
 
     # Keep top detections
     roi_count = config.DETECTION_MAX_INSTANCES
-    top_ids = np.argsort(class_scores[keep])[::-1][:roi_count]
-    keep = keep[top_ids]
+    top_ids   = np.argsort(class_scores[keep])[::-1][:roi_count]
+    keep      = keep[top_ids]
 
     # Arrange output as [N, (y1, x1, y2, x2, class_id, score)]
     # Coordinates are in image domain.
@@ -142,17 +144,19 @@ class DetectionLayer(KE.Layer):
 
     def __init__(self, config=None, **kwargs):
         super(DetectionLayer, self).__init__(**kwargs)
+        # super().__init__(**kwargs)
         self.config = config
 
     def call(self, inputs):
         def wrapper(rois, mrcnn_class, mrcnn_bbox, image_meta):
-        
+            from mrcnn.utils import parse_image_meta
             detections_batch = []
             
             # process item per item in batch 
             
             for b in range(self.config.BATCH_SIZE):
                 _, _, window, _ =  parse_image_meta(image_meta)
+
                 detections = refine_detections(rois[b], mrcnn_class[b], mrcnn_bbox[b], window[b], self.config)
                 
                 # Pad with zeros if detections < DETECTION_MAX_INSTANCES

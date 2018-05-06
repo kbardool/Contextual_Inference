@@ -105,7 +105,7 @@ def load_image_gt(dataset, config, image_id, augment=False,
     # if the corresponding mask got cropped out.
     # bbox: [num_instances, (y1, x1, y2, x2)]
     bbox = utils.extract_bboxes(mask)
-
+     
     # Active classes
     # Different datasets have different classes, so track the
     # classes supported in the dataset of this image.

@@ -88,7 +88,7 @@ def stack_tensors(x):
     print(' input shape is : ', x.shape)
     lst2 = [ np.squeeze(item) for item in np.split( x, x.shape[0], axis = 0 )]
     lst2 = [ np.squeeze(np.concatenate(np.split(item, item.shape[0], axis = 0 ), axis = 1)) for item in lst2]
-    result = [ item[~np.all(item[:,2:6] == 0, axis=1)] for item in lst2]
+    result = [ item[~np.all(item[:,0:4] == 0, axis=1)] for item in lst2]
     print(' length of output list is : ', len(result))
     return (result)
 
@@ -99,7 +99,7 @@ def stack_tensors_3d(x):
     ''' 
     print(' input shape is : ', x.shape)
     lst2   = [np.squeeze(item) for item in np.split( x, x.shape[0], axis = 0 )]
-    result = np.concatenate( [ i[~np.all(i[:,2:6] == 0, axis=1)] for i in lst2] , axis = 0)
+    result = np.concatenate( [ i[~np.all(i[:,0:4] == 0, axis=1)] for i in lst2] , axis = 0)
     print(' output shape is : ', result.shape)
     # print(result)
     return (result)
@@ -300,7 +300,7 @@ def non_max_suppression(boxes, scores, threshold):
     assert boxes.shape[0] > 0
     if boxes.dtype.kind != "f":
         boxes = boxes.astype(np.float32)
-
+    # print(' non_max_suppression ')
     # Compute box areas
     y1 = boxes[:, 0]
     x1 = boxes[:, 1]
@@ -312,9 +312,11 @@ def non_max_suppression(boxes, scores, threshold):
     ixs = scores.argsort()[::-1]
 
     pick = []
+    # print('====> Initial Ixs: ', ixs)
     while len(ixs) > 0:
         # Pick top box and add its index to the list
         i = ixs[0]
+        # print(' starting ixs : ', ixs,' compare ',i, ' with ', ixs[1:])
         pick.append(i)
         
         # Compute IoU of the picked box with the rest
@@ -323,12 +325,16 @@ def non_max_suppression(boxes, scores, threshold):
         # Identify boxes with IoU over the threshold. This
         # returns indicies into ixs[1:], so add 1 to get
         # indicies into ixs.
+        tst =  np.where(iou>threshold)
         remove_ixs = np.where(iou > threshold)[0] + 1
+        # print(' np.where( iou > threshold) : ' ,tst, 'tst[0] (index into ixs[1:]: ', tst[0], 
+         # ' remove_ixs (index into ixs) : ',remove_ixs)
         
         # Remove indicies of the picked and overlapped boxes.
         ixs = np.delete(ixs, remove_ixs)
         ixs = np.delete(ixs, 0)
-    
+        # print(' edning ixs (after deleting ixs[0]): ', ixs, ' picked so far: ',pick)
+    # print('====> Final Picks: ', pick)
     return np.array(pick, dtype=np.int32)
 
 

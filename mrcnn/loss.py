@@ -65,6 +65,7 @@ def rpn_class_loss_graph(rpn_match, rpn_class_logits):
                                              from_logits=True)
     
     loss = KB.switch(tf.size(loss) > 0, KB.mean(loss), tf.constant(0.0))
+    loss = KB.reshape(loss, [1, 1])    
     return loss
 
 ##-----------------------------------------------------------------------
@@ -151,11 +152,11 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
                                    config.IMAGES_PER_GPU)
   
     # Smooth-L1 Loss
-    loss     = KB.switch(tf.size(target_bbox) > 0,
+    loss = KB.switch(tf.size(target_bbox) > 0,
                     smooth_l1_loss(y_true=target_bbox, y_pred=rpn_bbox),
                     tf.constant(0.0))
-    loss     = KB.mean(loss)
-    
+    loss = KB.mean(loss)
+    loss = KB.reshape(loss, [1, 1])
     return loss
 
 ##-----------------------------------------------------------------------

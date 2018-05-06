@@ -57,6 +57,7 @@ np.set_printoptions(linewidth=100,precision=4)
 
 ##------------------------------------------------------------------------------------
 ## process input arguments
+#  call example train-shapes_gpu --epochs 12 --steps-in-epoch 5
 ##------------------------------------------------------------------------------------
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Train Mask R-CNN on MS COCO.')
@@ -78,6 +79,10 @@ parser.add_argument('--model', required=False,
                     # default=500,
                     # metavar="<image count>",
                     # help='Images to use for evaluation (defaults=500)')
+parser.add_argument('--last_epoch', required=False,
+                    default=0,
+                    metavar="<last epoch ran>",
+                    help='Identify last completed epcoh for tensorboard continuation')
 
 parser.add_argument('--lr', required=False,
                     default=0.001,
@@ -89,7 +94,7 @@ parser.add_argument('--epochs', required=False,
                     metavar="<epochs to run>",
                     help='Number of epochs to run (default=3)')
                     
-parser.add_argument('--steps_in_epoch', required=False,
+parser.add_argument('--steps_per_epoch', required=False,
                     default=1,
                     metavar="<steps in each epoch>",
                     help='Number of batches to run in each epochs (default=5)')
@@ -108,24 +113,33 @@ print("Steps in each epoch:   ", args.steps_in_epoch)
 ##------------------------------------------------------------------------------------
 ## setup project directories
 ##------------------------------------------------------------------------------------
-# # Root directory of the project ------------------------------------------------
-ROOT_DIR = os.getcwd()
-MODEL_PATH = 'E:\Models'
-# Directory to save logs and trained model
-MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_logs")
-# Path to COCO trained weights
+#---------------------------------------------------------------------------------
+# # Root directory of the project 
+# MODEL_DIR    :    Directory to save logs and trained model
+# COCO_MODEL_PATH  : Path to COCO trained weights
+#---------------------------------------------------------------------------------
+
+# WINDOWS MACHINE ------------------------------------------------------------------
+# WINDOWS MACHINE ------------------------------------------------------------------
+ROOT_DIR          = 'E:\'
+MODEL_PATH        = os.path.join(ROOT_DIR, "models")
+DATASET_PATH      = os.path.join(ROOT_DIR, 'MLDatasets')
+#### MODEL_DIR         = os.path.join(MODEL_PATH, "mrcnn_logs")
 COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
-RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
+DEFAULT_LOGS_DIR  = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
+COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
+
+# RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
 
 # LINUX MACHINE ------------------------------------------------------------------
 # ROOT_DIR          = os.getcwd()
 # MODEL_PATH        = os.path.expanduser('~/models')
-# Directory to save logs and trained model
-# MODEL_DIR         = os.path.join(MODEL_PATH, "mrcnn_logs")
-# Path to COCO trained weights
+# DATASET_PATH      = os.path.expanduser('~/MLDatasets')
+#### MODEL_DIR         = os.path.join(MODEL_PATH, "mrcnn_logs")
 # COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
+# COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
+# DEFAULT_LOGS_DIR = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
 # RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
-
 
 ##------------------------------------------------------------------------------------
 ## setup tf session and debugging 
@@ -163,9 +177,12 @@ config = shapes.ShapesConfig()
 config.BATCH_SIZE      = 2                  # Batch size is 2 (# GPUs * images/GPU).
 config.IMAGES_PER_GPU  = 2                  # Must match BATCH_SIZE
 config.STEPS_PER_EPOCH = int(args.steps_in_epoch)
+config.LEARNING_RATE   = float(args.lr)
+
 config.EPOCHS_TO_RUN   = int(args.epochs)
 config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
-config.LEARNING_RATE   = float(args.lr)
+config.LAST_EPOCH_RAN  = int(args.last_epoch)
+config.display()
 
 ##------------------------------------------------------------------------------------
 ## Build shape dataset        
@@ -218,7 +235,6 @@ if init_with == "imagenet":
 elif init_with == "coco":
     # Load weights trained on MS COCO, but skip layers that
     # are different due to the different number of classes
-
     # See README for instructions to download the COCO weights
     loc=model.load_weights(COCO_MODEL_PATH, by_name=True,
                        exclude=["mrcnn_class_logits", "mrcnn_bbox_fc", 
@@ -228,17 +244,16 @@ elif init_with == "last":
     lastChkPointFile = model.find_last()[1]
     print('    Last Checkpoint file output: ', lastChkPointFile)
     loc= model.load_weights(lastChkPointFile, by_name=True)
-print('    Load weights complete :', loc)
-print('    Load weights complete :', model.set_log_dir )
-
 
 print()
-print("    Model                 : ", args.model)
 # print("Dataset: ", args.dataset)
 # print("Logs:    ", args.logs)
 # print("Limit:   ", args.limit)
+print("    Model                 : ", args.model)
+print("    Last Epcoh Ran        : ", config.LAST_EPOCH_RAN)
 print("    Epochs to run         : ", config.EPOCHS_TO_RUN)
 print("    Steps in each epoch   : ", config.STEPS_PER_EPOCH)
+print("    Execution resumes from epoch: ", model.epoch)
 print()
 print('    Root dir              : ', ROOT_DIR)
 print('    Model path            : ', MODEL_PATH)
@@ -249,7 +264,6 @@ print('    Checkpoint folder Path: ', MODEL_DIR)
 
 config.display() 
 
-
 ##------------------------------------------------------------------------------------
 ## Training heads using fit_generator()
 ##------------------------------------------------------------------------------------
@@ -259,11 +273,11 @@ config.display()
 # layers. You can also pass a regular expression to select
 # which layers to train by name pattern.
 
-# model.train(dataset_train, dataset_val, 
-            # learning_rate=config.LEARNING_RATE, 
+model.train(dataset_train, dataset_val, 
+            learning_rate=config.LEARNING_RATE, 
             # epochs = 10,
-            #  # epochs_to_run =2, 
-            # layers='heads')
+            epochs_to_run = config.EPOCHS_TO_RUN,
+            layers='fcn')
 
 
 ##------------------------------------------------------------------------------------
@@ -275,10 +289,10 @@ config.display()
 # a batch through the network, pick up the generated RoI detections and bounding boxes 
 # and generate our semantic / gaussian tensors ...
 # 
-model.train_in_batches(dataset_train, dataset_val, 
-                       learning_rate = config.LEARNING_RATE, 
-                       epochs_to_run = config.EPOCHS_TO_RUN,
-                       layers='heads')
+# model.train_in_batches(dataset_train, dataset_val, 
+                       # learning_rate = config.LEARNING_RATE, 
+                       # epochs_to_run = config.EPOCHS_TO_RUN,
+                       # layers='heads')
 
 
 # ## Simulate one training iteration - 1

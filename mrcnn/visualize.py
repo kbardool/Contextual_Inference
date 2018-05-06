@@ -11,11 +11,11 @@ import random
 import itertools
 import colorsys
 import numpy as np
-from skimage.measure import find_contours
+from   skimage.measure import find_contours
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.lines as lines
-from matplotlib.patches import Polygon
+from   matplotlib.patches import Polygon
 import IPython.display
 
 import mrcnn.utils as utils
@@ -26,10 +26,10 @@ import mrcnn.utils as utils
 ############################################################
 
 ##----------------------------------------------------------------------
-## display_instances
+## display_images
 ##----------------------------------------------------------------------
 def display_images(images, titles=None, cols=4, cmap=None, norm=None,
-                   interpolation=None):
+                   interpolation=None, width=14):
     """
     Display the given set of images, optionally with titles.
     
@@ -42,7 +42,8 @@ def display_images(images, titles=None, cols=4, cmap=None, norm=None,
     """
     titles = titles if titles is not None else [""] * len(images)
     rows = len(images) // cols + 1
-    plt.figure(figsize=(14, 14 * rows // cols))
+     
+    plt.figure(figsize=(width, width * rows // cols))
     i = 1
     for image, title in zip(images, titles):
         plt.subplot(rows, cols, i)

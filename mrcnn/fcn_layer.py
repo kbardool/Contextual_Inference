@@ -154,7 +154,7 @@ def fcn_graph( feature_map , config , weight_decay=0., batch_momentum=0.9):
     w_factor = height / fcn_classify_shape[2]
     print('   h_factor : ', h_factor, 'w_factor : ', w_factor)
     
-    output = BilinearUpSampling2D(size=(h_factor, w_factor), name='fcn_bilinear')(x)
+    output = BilinearUpSampling2D(size=(h_factor, w_factor), name='fcn_heatmap')(x)
     print('   FCN output (fcn_bilinear) shape is : ' , output.get_shape(), 'Keras tensor ', KB.is_keras_tensor(output) )
                           
     # print('\n    L2 normalization ------------------------------------------------------')   

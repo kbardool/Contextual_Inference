@@ -25,7 +25,8 @@ import tensorflow as tf
 # import keras.backend as K
 # import keras.layers as KL
 # import keras.initializers as KI
-import keras.engine as KE
+import keras.engine  as KE
+import keras.backend as KB
 # import keras.models as KM
 import mrcnn.utils as utils
 sys.path.append('..')
@@ -115,7 +116,7 @@ class ProposalLayer(KE.Layer):
         anchors: [N, (y1, x1, y2, x2)] anchors defined in image coordinates
         """
         super().__init__(**kwargs)
-        print('\n>>> Proposal Layer ')
+        print('\n>>> Proposal Layer - generate ',proposal_count, ' proposals' )
 
         self.config = config
         self.proposal_count = proposal_count
@@ -221,6 +222,8 @@ class ProposalLayer(KE.Layer):
             
         # Apply the nms operation on slices of normalized boxes
         proposals = utils.batch_slice([normalized_boxes, scores], nms, self.config.IMAGES_PER_GPU)
+        print('     Output: Prposals shape : ', proposals.shape, KB.int_shape(proposals))
+
         return proposals
 
     def compute_output_shape(self, input_shape):

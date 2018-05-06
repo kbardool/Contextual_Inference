@@ -33,15 +33,15 @@ import keras.models as KM
 
 import mrcnn.utils            as utils
 import mrcnn.loss             as loss
-from   mrcnn.fcn_loss_layer   import FCNLossLayer
+# from   mrcnn.fcn_loss_layer   import FCNLossLayer
 from   mrcnn.datagen          import data_generator
 from   mrcnn.utils            import log
 from   mrcnn.utils            import parse_image_meta_graph, parse_image_meta
 from   mrcnn.fcn_layer        import fcn_graph 
 from   mrcnn.RPN_model        import build_rpn_model
 from   mrcnn.resnet_model     import resnet_graph
-from   mrcnn.pcn_layer        import PCNLayer, PCILayer
-from   mrcnn.pcn_layer_tf     import PCNLayerTF
+
+from   mrcnn.pcn_layer_tf     import PCNLayerTF, PCILayerTF
 from   mrcnn.proposal_layer   import ProposalLayer
 from   mrcnn.detect_tgt_layer import DetectionTargetLayer  
 from   mrcnn.detect_layer     import DetectionLayer  
@@ -258,9 +258,9 @@ class MaskRCNN():
         proposal_count = config.POST_NMS_ROIS_TRAINING if mode == "training"\
                     else config.POST_NMS_ROIS_INFERENCE
 
-        rpn_rois = ProposalLayer(proposal_count=proposal_count,            # num proposals to generate
+        rpn_proposal_rois = ProposalLayer(proposal_count=proposal_count,            # num proposals to generate
                                  nms_threshold=config.RPN_NMS_THRESHOLD,
-                                 name="proposal_rois",
+                                 name="rpn_proposal_rois",
                                  anchors=self.anchors,
                                  config=config)([rpn_class, rpn_bbox])
                                  
@@ -276,9 +276,10 @@ class MaskRCNN():
                 input_rois  = KL.Input(shape=[config.POST_NMS_ROIS_TRAINING, 4], name="input_roi", dtype=np.int32)
                 target_rois = KL.Lambda(lambda x: KB.cast(x, tf.float32) / image_scale[:4])(input_rois)
             else:
-                target_rois = rpn_rois
+                target_rois = rpn_proposal_rois
             
-            #------------------------------------------------------------------------
+            #--------------------------------------------------------------------------------------
+            ## DetetcionTargetLayer
             #  Generate detection targets
             #    generated RPNs ----> Target ROIs
             #
@@ -287,85 +288,98 @@ class MaskRCNN():
             #    Subsamples proposals and generates target outputs for training
             #    Note that proposal class IDs, input_normalized_gt_boxes, and gt_masks are zero padded. 
             #    Equally, returned rois and targets are zero padded.
-            #------------------------------------------------------------------------
-            rois, target_class_ids, target_bbox, target_mask, roi_gt_boxes = \
+            # 
+            #   Note : roi (first output of DetectionTargetLayer) was testing and verified to b
+            #          be equal to output_rois. Therefore, the output_rois layer was removed, 
+            #          and the first output below was renamed rois --> output_rois
+            #--------------------------------------------------------------------------------------
+            output_rois, target_class_ids, target_bbox_deltas, target_mask, roi_gt_boxes = \
                 DetectionTargetLayer(config, name="proposal_targets") \
                                     ([target_rois, input_gt_class_ids, input_normlzd_gt_boxes, input_gt_masks])
-                    
-            ##---------------------------------------------------------------------------
+
+            #--------------------------------------------------------------------------------------
+            # TODO: clean up (use tf.identify if necessary)
+            # replace with KB.identity -- 03-05-2018
+            # renamed output from DetectionTargetLayer abouve from roi to output_roi and 
+            # following lines were removed. 
+            # 
+            # output_rois = KL.Lambda(lambda x: x * 1, name="output_rois")(rois)
+            # output_rois = KL.Lambda(lambda x: KB.identity(x), name= "output_rois")(rois)
+            #------------------------------------------------------------------------------------
+
+            #------------------------------------------------------------------------------------
             ## MRCNN Network Heads
-            ##    TODO: verify that this handles zero padded ROIs
-            ##---------------------------------------------------------------------------
+            #  TODO: verify that this handles zero padded ROIs
+            #----------------------------------------------------------------------------
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
-                fpn_classifier_graph(rois, mrcnn_feature_maps, config.IMAGE_SHAPE, config.POOL_SIZE, config.NUM_CLASSES)
+                fpn_classifier_graph(output_rois, mrcnn_feature_maps, config.IMAGE_SHAPE, config.POOL_SIZE, config.NUM_CLASSES)
 
             mrcnn_mask = \
-                fpn_mask_graph(rois, mrcnn_feature_maps, config.IMAGE_SHAPE, config.MASK_POOL_SIZE, config.NUM_CLASSES)
+                fpn_mask_graph(output_rois, mrcnn_feature_maps, config.IMAGE_SHAPE, config.MASK_POOL_SIZE, config.NUM_CLASSES)
 
-            # TODO: clean up (use tf.identify if necessary)
-            output_rois = KL.Lambda(lambda x: x * 1, name="output_rois")(rois)
 
-            ##---------------------------------------------------------------------------
+
+            #----------------------------------------------------------------------------
             ## PCN Layer to generate contextual feature maps using outputs from MRCNN 
-            ##---------------------------------------------------------------------------         
+            #----------------------------------------------------------------------------         
             # Once we are comfortable with the results we can remove additional outputs from here.....
-
+            # from   mrcnn.pcn_layer        import PCNLayer, PCILayer
             # pred_gaussian, pred_tensor  , pred_cls_cnt ,       \
             # gt_gaussian  , gt_tensor    , gt_cls_cnt           \
                 # =  PCNLayer(config, name = 'cntxt_layer' )     \
                          # ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])            
 
                                    
-            pred_gaussian , gt_gaussian    \
+            pred_gaussian , gt_gaussian, pred_tensor, gt_tensor    \
                 =  PCNLayerTF(config, name = 'cntxt_layer' ) \
                          ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_normlzd_gt_boxes])
             print('<<<  shape of pred_gaussian   : ', pred_gaussian.shape, ' Keras tensor ', KB.is_keras_tensor(pred_gaussian) )                         
             print('<<<  shape of gt_gaussian     : ', gt_gaussian.shape  , ' Keras tensor ', KB.is_keras_tensor(gt_gaussian) )
             
-            # print('<<<  shape of pred_scatter  : ', pred_scatter.shape )
-            # print('<<<  shape of pred_means    : ', pred_means.shape   )
-            # print('<<<  shape of pred_covar    : ', pred_covar.shape   )
-            # print('<<<  shape of pred_tensor   : ', pred_tensor.shape  )                         
-            # print('<<<  shape of pred_cls_cnt  : ', pred_cls_cnt.shape )                       
-            
-            # print('<<<  shape of gt_scatter    : ', gt_scatter.shape  )
-            # print('<<<  shape of gt_gaussian   : ', gt_gaussian.shape )
-            # print('<<<  shape of gt_means      : ', gt_means.shape    )
-            # print('<<<  shape of gt_covar      : ', gt_covar.shape    )           
-            # print('<<<  shape of gt_gaussian   : ', gt_gaussian.shape )
-            # print('<<<  shape of gt_tensor     : ', gt_tensor.shape   )                         
-            # print('<<<  shape of gt_cls_cnt    : ', gt_cls_cnt.shape  )                         
-            # print('<<<  shape of gt_tensor2    : ', gt_tensor2.shape  )                         
-            # print('<<<  shape of gt_cls_cnt2   : ', gt_cls_cnt2.shape )                         
-
                          
             #------------------------------------------------------------------------
             ## FCN Network Head
             #------------------------------------------------------------------------
-            
-            # FCN_model = build_fcn_model(self.config)           
-            # fcn_block10, fcn_block11, fcn_block12,  fcn_output = FCN_model(pred_gaussian2)
+            # fcn_heatmap = fcn_graph(pred_gaussian, config)
+            # print('   fcn_heatmap  shape is : ', KB.int_shape(fcn_heatmap), ' Keras tensor ', KB.is_keras_tensor(fcn_heatmap) )        
 
-            # fcn_output = KL.Lambda(lambda x: fcn_graph(*x), name="fcn_graph") ([pred_gaussian, config])
-            # fcn_output = KL.Lambda(lambda x: x * 1, name="fcn_output")(fcn_out)
-
-            fcn_output = fcn_graph(pred_gaussian, config)
-
-
-            print('   fcn_output  shape is : ', KB.int_shape(fcn_output), ' Keras tensor ', KB.is_keras_tensor(fcn_output) )        
             #------------------------------------------------------------------------
             ## Loss layer definitions
             #------------------------------------------------------------------------
             rpn_class_loss = KL.Lambda(lambda x: loss.rpn_class_loss_graph(*x),        name="rpn_class_loss")\
-                            ([input_rpn_match, rpn_class_logits])
+                            ([input_rpn_match    , rpn_class_logits])
             
-            # The following two losses are the same, the only difference is the method of 
-            # calculating the Smooth L1 function, and should produce the same loss 
-            # can remove the old one when we're happy 
+            rpn_bbox_loss  = KL.Lambda(lambda x: loss.rpn_bbox_loss_graph(config, *x),  name="rpn_bbox_loss")\
+                            ([input_rpn_bbox    , input_rpn_match   , rpn_bbox])
+
+            mrcnn_class_loss     = KL.Lambda(lambda x: loss.mrcnn_class_loss_graph(*x), name="mrcnn_class_loss")\
+                            ([target_class_ids  , mrcnn_class_logits, active_class_ids])
             
-            rpn_bbox_loss  = KL.Lambda(lambda x: loss.rpn_bbox_loss_graph(config, *x), name="rpn_bbox_loss")\
-                            ([input_rpn_bbox , input_rpn_match, rpn_bbox])
+            mrcnn_bbox_loss      = KL.Lambda(lambda x: loss.mrcnn_bbox_loss_graph(*x),  name="mrcnn_bbox_loss") \
+                            ([target_bbox_deltas, target_class_ids  , mrcnn_bbox])
+
+            mrcnn_mask_loss      = KL.Lambda(lambda x: loss.mrcnn_mask_loss_graph(*x),  name="mrcnn_mask_loss") \
+                            ([target_mask       , target_class_ids  , mrcnn_mask])
+
+            print('\n')
+            print('---------------------------------------------------')
+            print('    building fcn_loss')
+            print('---------------------------------------------------')
+            # fcn_loss       = KL.Lambda(lambda x: loss.fcn_loss_graph(*x), name="fcn_loss") \
+                            # ([gt_gaussian, fcn_heatmap])
+
+            print('\n\n\n')
+            print('---------------------------------------------------')
+            print('    building fcn_norm_loss')
+            print('---------------------------------------------------')
             
+            # fcn_norm_loss  = KL.Lambda(lambda x: loss.fcn_norm_loss_graph(*x),  name="fcn_norm_loss") \
+                             # ([gt_gaussian, fcn_heatmap])
+
+            # rpn_bbox_loss_old and rpn_bbox_loss are the same, the only difference is the 
+            # method calculating the Smooth L1 function, and they should produce the same loss 
+            # can remove the old one when we're happy.... :-/ 
+                            
             # rpn_bbox_loss_old = KL.Lambda(lambda x: loss.rpn_bbox_loss_graph_old(config, *x), name="rpn_bbox_loss_old") \
                             # ([input_rpn_bbox , input_rpn_match, rpn_bbox])
 
@@ -373,48 +387,22 @@ class MaskRCNN():
             # class_loss_2   = CLSLossLayer(config, name='mrcnn_class_loss_2') \
                             # ([target_class_ids, mrcnn_class_logits, active_class_ids])
                             
-            class_loss     = KL.Lambda(lambda x: loss.mrcnn_class_loss_graph(*x),      name="mrcnn_class_loss")\
-                            ([target_class_ids, mrcnn_class_logits, active_class_ids])
-            
-            bbox_loss      = KL.Lambda(lambda x: loss.mrcnn_bbox_loss_graph(*x),       name="mrcnn_bbox_loss") \
-                            ([target_bbox, target_class_ids, mrcnn_bbox])
-
-            print('\n\n\n')
-            print('---------------------------------------------------')
-            print('    mrcnn_mask_loss    ')
-            print('---------------------------------------------------')
-                            
-            mask_loss      = KL.Lambda(lambda x: loss.mrcnn_mask_loss_graph(*x),       name="mrcnn_mask_loss") \
-                            ([target_mask, target_class_ids, mrcnn_mask])
-
-            print('\n\n\n')
-            print('---------------------------------------------------')
-            print('    building fcn_loss')
-            print('---------------------------------------------------')
-            fcn_loss       = KL.Lambda(lambda x: loss.fcn_loss_graph(*x), name="fcn_loss") \
-                            ([gt_gaussian, fcn_output])
-
-            print('\n\n\n')
-            print('---------------------------------------------------')
-            print('    building fcn_norm_loss')
-            print('---------------------------------------------------')
-            
-            fcn_norm_loss  = KL.Lambda(lambda x: loss.fcn_norm_loss_graph(*x),  name="fcn_norm_loss") \
-                             ([gt_gaussian, fcn_output])
-
+                             
             # fcn_loss, fcn_norm_loss  = FCNLossLayer(config, name='fcn_loss_layer') \
-                            # ([gt_gaussian, fcn_output])
+                            # ([gt_gaussian, fcn_heatmap])
                              
             # print(' pred_cls_cnt2 is keras tensor? :', KB.is_keras_tensor(pred_cls_cnt2))
             # print(' pred_gaussian is keras tensor? :', KB.is_keras_tensor(pred_gaussian))
             print('\n Keras Tensors?? ')
-            print(' pred_gaussian :', KB.is_keras_tensor(pred_gaussian))
-            print(' gt_gaussian   :', KB.is_keras_tensor(gt_gaussian))
-            print(' mask_loss     :', KB.is_keras_tensor(mask_loss))
-            print(' rpn_rois      :', KB.is_keras_tensor(rpn_rois))
-            print(' fcn_loss      :', KB.is_keras_tensor(fcn_loss))
-            print(' fcn_norm_loss :', KB.is_keras_tensor(fcn_norm_loss))
-            # print(' fcn_norm_loss is keras tensor? :', KB.is_keras_tensor(fcn_norm_loss))
+            # print(' roi               :', KB.is_keras_tensor(rois))
+            print(' output_rois       :', KB.is_keras_tensor(output_rois ))
+            print(' pred_gaussian     :', KB.is_keras_tensor(pred_gaussian))
+            print(' gt_gaussian       :', KB.is_keras_tensor(gt_gaussian))
+            print(' mask_loss         :', KB.is_keras_tensor(mrcnn_mask_loss))
+            print(' rpn_proposal_rois :', KB.is_keras_tensor(rpn_proposal_rois))
+            # print(' fcn_loss          :', KB.is_keras_tensor(fcn_loss))
+            # print(' fcn_norm_loss     :', KB.is_keras_tensor(fcn_norm_loss))
+
             # Model Inputs 
             inputs = [ 
                        input_image,              #  
@@ -429,55 +417,50 @@ class MaskRCNN():
             if not config.USE_RPN_ROIS:
                 inputs.append(input_rois)
 
-            outputs = [
-                           output_rois       , target_class_ids  , target_bbox  , target_mask       # 0 - 3
-                         , rpn_class_logits  , rpn_rois          , rpn_class    , rpn_bbox          # 4 - 7
-                         , mrcnn_class_logits, mrcnn_class       , mrcnn_bbox   , mrcnn_mask        # 8 - 11 (from FPN)
-                         , fcn_output                                                               # 12
-                           
-                         , rpn_class_loss    , rpn_bbox_loss    #, rpn_bbox_loss_old                # 13 - 14
-                         , class_loss        , bbox_loss         , mask_loss                        # 15 - 17
-
-                         # , pred_gaussian     , pred_tensor       , pred_cls_cnt                     # 18 - 20                                
-                         # , gt_gaussian       , gt_tensor         , gt_cls_cnt                       # 21 - 23
-
-                         , pred_gaussian   # , pred_tensor2      , pred_cls_cnt2                    # 24 - 26
-                         , gt_gaussian     # , gt_tensor2        , gt_cls_cnt2                      # 27 - 29
-                         # , roi_gt_boxes
-                         # , pred_gaussian_out
-                         , fcn_loss
-                         , fcn_norm_loss 
-                       # , pred_scatter      , means             , covar    
-                       # , gt_scatter        , gt_means          , gt_covar                               
-                       # , pred_scatter2     , means2            , covar2           
-                       # , gt_scatter2       , gt_means2         , gt_covar2      
-
+            outputs =  [   rpn_class_logits   , rpn_class         , rpn_bbox             # 0 - 2
+                         , rpn_proposal_rois                                             # 3
+                         , output_rois        , target_class_ids  , target_bbox_deltas  , target_mask , roi_gt_boxes  # 4 -8    
+                         , mrcnn_class_logits , mrcnn_class       , mrcnn_bbox          , mrcnn_mask        # 9 -  12 (from FPN)
+                         , rpn_class_loss     , rpn_bbox_loss                                               # 13 - 14
+                         , mrcnn_class_loss   , mrcnn_bbox_loss   , mrcnn_mask_loss                         # 15 - 17
+                         # , fcn_norm_loss 
+                         , pred_gaussian                                                                    # 18
+                         , gt_gaussian                                                                      # 19
+                         , pred_tensor                                                                      # 20
+                         , gt_tensor                                                                        # 21    
+                         
+                         # , fcn_loss
+                         # , fcn_heatmap                                                                      # 12
                       ]
         
-            # model = KM.Model(inputs, outputs, name='mask_rcnn')
-        
         # end if Training
-
         
-        #----------------------------------------------------------------------------                
+        ##----------------------------------------------------------------------------                
         ## Inference Mode
-        #----------------------------------------------------------------------------                
+        ##----------------------------------------------------------------------------                
         else:
             # Network Heads
             # Proposal classifier and BBox regressor heads
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox =\
-                fpn_classifier_graph(rpn_rois, mrcnn_feature_maps, config.IMAGE_SHAPE,
+                fpn_classifier_graph(rpn_proposal_rois, mrcnn_feature_maps, config.IMAGE_SHAPE,
                                      config.POOL_SIZE, config.NUM_CLASSES)
 
-            # Detections
+            #------------------------------------------------------------------------
+            ## DetetcionLayer
+            #  Generate detection targets
+            #    generated RPNs + mrcnn predictions ----> Target ROIs
+            #
             # output is [batch, num_detections, (y1, x1, y2, x2, class_id, score)] in image coordinates
-            detections = DetectionLayer(config, name="mrcnn_detection")([rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
-            
+            #------------------------------------------------------------------------           
+            detections = DetectionLayer(config, name="mrcnn_detection")([rpn_proposal_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
+            print('<<<  shape of DETECTIONS : ', KB.int_shape(detections), 
+                        ' Keras tensor ', KB.is_keras_tensor(detections) )                         
             # Convert boxes to normalized coordinates
-            # TODO: let DetectionLayer return normalized coordinates to avoid
-            #       unnecessary conversions
+            # TODO: let DetectionLayer return normalized coordinates to avoid unnecessary conversions
             h, w = config.IMAGE_SHAPE[:2]
             detection_boxes = KL.Lambda(lambda x: x[..., :4] / np.array([h, w, h, w]))(detections)
+            print('<<<  shape of DETECTION_BOXES : ', KB.int_shape(detection_boxes),
+                  ' Keras tensor ', KB.is_keras_tensor(detection_boxes) )                         
 
             # Create masks for detections
             mrcnn_mask = fpn_mask_graph(detection_boxes,
@@ -486,16 +469,24 @@ class MaskRCNN():
                                         config.MASK_POOL_SIZE,
                                         config.NUM_CLASSES)
 
-            # The PCI Layer prepares the input for the FCN layer ..
-            pred_gaussian, pred_tensor, pred_cls_cnt = \
-                 PCILayer(config, name = 'cntxt_layer' ) ([mrcnn_class, mrcnn_bbox, detections])
+            #----------------------------------------------------------------------------
+            ## PCI Layer to generate contextual feature maps using outputs from MRCNN 
+            #----------------------------------------------------------------------------         
+            # pred_gaussian =  PCILayerTF(config, name = 'cntxt_layer') \
+                            # ([mrcnn_class, mrcnn_bbox, detection_boxes])
+            # print('<<<  shape of pred_gaussian   : ', pred_gaussian.shape, ' Keras tensor ', KB.is_keras_tensor(pred_gaussian) )                         
+                                        
+            #------------------------------------------------------------------------
+            ## FCN Network Head
+            #------------------------------------------------------------------------
+            # fcn_heatmap = fcn_graph(pred_gaussian, config)
+            # print('   fcn_heatmap  shape is : ', KB.int_shape(fcn_heatmap), ' Keras tensor ', KB.is_keras_tensor(fcn_heatmap) )        
+
                                         
             inputs  = [ input_image, input_image_meta]
             outputs = [ detections,
-                        rpn_rois, rpn_class, rpn_bbox,
+                        rpn_proposal_rois, rpn_class, rpn_bbox,
                         mrcnn_class, mrcnn_bbox, mrcnn_mask ]
-            # model = KM.Model( inputs, outputs,  name='mask_rcnn')                           
-
             # end if Inference Mode
         
         model = KM.Model( inputs, outputs,  name='mask_rcnn')
@@ -508,6 +499,68 @@ class MaskRCNN():
         print('>>> MaskRCNN build complete')
         return model
 
+                
+    def detect(self, images, verbose=0):
+        '''
+        Runs the detection pipeline.
+
+        images:         List of images, potentially of different sizes.
+
+        Returns a list of dicts, one dict per image. The dict contains:
+        rois:           [N, (y1, x1, y2, x2)] detection bounding boxes
+        class_ids:      [N] int class IDs
+        scores:         [N] float probability scores for the class IDs
+        masks:          [H, W, N] instance binary masks
+        '''
+        # print('>>> model detect()')
+        
+        assert self.mode   == "inference", "Create model in inference mode."
+        assert len(images) == self.config.BATCH_SIZE, "len(images) must be equal to BATCH_SIZE"
+
+        if verbose:
+            log("Processing {} images".format(len(images)))
+            for image in images:
+                log("image", image)
+                
+        # Mold inputs to format expected by the neural network
+        molded_images, image_metas, windows = self.mold_inputs(images)
+        if verbose:
+            log("molded_images", molded_images)
+            log("image_metas"  , image_metas)
+            
+        ## Run object detection pipeline
+        # print('    call predict()')
+        detections, rpn_proposal_rois, rpn_class, rpn_bbox,\
+                    mrcnn_class, mrcnn_bbox, mrcnn_mask \
+                              =  self.keras_model.predict([molded_images, image_metas], verbose=0)
+            
+        # print('    return from  predict()')
+        # print('    Length of detections : ', len(detections))
+        # print('    Length of rpn_proposal_rois   : ', len(rpn_proposal_rois   ))
+        # print('    Length of rpn_class  : ', len(rpn_class  ))
+        # print('    Length of rpn_bbox   : ', len(rpn_bbox   ))
+        # print('    Length of mrcnn_class: ', len(mrcnn_class))
+        # print('    Length of mrcnn_bbox : ', len(mrcnn_bbox ))
+        # print('    Length of mrcnn_mask : ', len(mrcnn_mask ))
+
+        # Process detections
+        results = []
+        for i, image in enumerate(images):
+            final_rois, final_class_ids, final_scores, final_masks =\
+                self.unmold_detections(detections[i], 
+                                       mrcnn_mask[i],
+                                       image.shape  ,
+                                       windows[i])
+            results.append({
+                "rois"     : final_rois,
+                "class_ids": final_class_ids,
+                "scores"   : final_scores,
+                "masks"    : final_masks,
+            })
+        return results
+
+
+        
 ##-------------------------------------------------------------------------------------
 ##-------------------------------------------------------------------------------------        
 ##-------------------------------------------------------------------------------------
@@ -544,6 +597,30 @@ class MaskRCNN():
         # log("    find_last info: checkpoint: {}".format(checkpoint))
         return dir_name, checkpoint
 
+    def save_model(self, filepath, by_name=False, exclude=None):
+        """
+        Modified version of the correspoding Keras function with
+        the addition of multi-GPU support and the ability to exclude
+        some layers from loading.
+        exlude: list of layer names to excluce
+        """
+        print('>>> save_model_architecture()')
+
+        model_json = self.keras_model.to_json()
+        full_filepath = os.path.join(filepath, filename)
+        log('    save model to  {}'.format(full_filepath))
+
+        with open(full_filepath , 'w') as f:
+            # json.dump(model_json, full_filepath)               
+            if hasattr(f, 'close'):
+                f.close()
+                print('file closed')
+                
+                
+        print('    save_weights: save directory is  : {}'.format(filepath))
+        print('    save model Load weights complete')        
+        return(filepath)
+
         
     def load_weights(self, filepath, by_name=False, exclude=None):
         """
@@ -575,7 +652,11 @@ class MaskRCNN():
         # Exclude some layers
         if exclude:
             layers = filter(lambda l: l.name not in exclude, layers)
-
+       
+        # print(' layers to load ' )
+        # print('----------------' )
+        # for i in layers:
+            # print(i)
         if by_name:
             topology.load_weights_from_hdf5_group_by_name(f, layers)
         else:
@@ -585,7 +666,7 @@ class MaskRCNN():
         log('    load_weights: Log directory set to : {}'.format(filepath))
         # Update the log directory
         self.set_log_dir(filepath)
-        print('    Load weights complete')        
+        print('    Load weights complete : ',filepath)        
         return(filepath)
 
     def set_log_dir(self, model_path=None):
@@ -597,9 +678,13 @@ class MaskRCNN():
             name.
         """
         # Set date and epoch counter as if starting a new model
-        print('>>> Set_log_dir() -- model dir is ', self.model_dir)
+        # print('>>> Set_log_dir() -- model dir is ', self.model_dir)
+        # print('    model_path           :   ', model_path)
+        # print('    config.LAST_EPOCH_RAN:   ', self.config.LAST_EPOCH_RAN)
+
         self.tb_dir = os.path.join(self.model_dir,'tensorboard')
-        self.epoch  = 0
+        # self.epoch  = 0
+        last_checkpoint_epoch = 0
         now = datetime.datetime.now()
         
         # If we have a model path with date and epochs use them
@@ -609,17 +694,23 @@ class MaskRCNN():
             # A sample model path might look like:
             # /path/to/logs/coco20171029T2315/mask_rcnn_coco_0001.h5
             model_path = model_path.replace('\\' , "/")
-            print('    set_log_dir: model_path (input) is : {}  '.format(model_path))        
+            # print('    set_log_dir: model_path (input) is : {}  '.format(model_path))        
 
             regex = r".*/\w+(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})/mask\_rcnn\_\w+(\d{4})\.h5"
             m = re.match(regex, model_path)
-            if m:
+            if m:             
                 now = datetime.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
                                         int(m.group(4)), int(m.group(5)))
-                self.epoch = int(m.group(6)) + 1
-            print('    set_log_dir: self.epoch set to {}  (Next epoch to run)'.format(self.epoch))
-            print('    set_log_dir: tensorboard path: {}'.format(self.tb_dir))
-            # Directory for training logs
+                last_checkpoint_epoch = int(m.group(6)) + 1
+            # print('    set_log_dir: self.epoch set to {}  (Next epoch to run)'.format(self.epoch))
+            # print('    set_log_dir: tensorboard path: {}'.format(self.tb_dir))
+
+        if last_checkpoint_epoch > 0 and  self.config.LAST_EPOCH_RAN > last_checkpoint_epoch: 
+            self.epoch = self.config.LAST_EPOCH_RAN
+        else :
+            self.epoch = last_checkpoint_epoch
+        
+        # Directory for training logs
         self.log_dir = os.path.join(self.model_dir, "{}{:%Y%m%dT%H%M}".format(
                 self.config.NAME.lower(), now))
 
@@ -628,11 +719,13 @@ class MaskRCNN():
             self.config.NAME.lower()))
         self.checkpoint_path = self.checkpoint_path.replace("*epoch*", "{epoch:04d}")
         log('    set_log_dir: Checkpoint path set to : {}'.format(self.checkpoint_path))
+        log('    set_log_dir: self.epoch set to {} '.format(self.epoch))
 
         
         
     def get_imagenet_weights(self):
-        """Downloads ImageNet trained weights from Keras.
+        """
+        Downloads ImageNet trained weights from Keras.
         Returns path to weights file.
         """
         from keras.utils.data_utils import get_file
@@ -646,20 +739,29 @@ class MaskRCNN():
 
 
     def mold_inputs(self, images):
-        """Takes a list of images and modifies them to the format expected
-        as an input to the neural network.
-        images: List of image matricies [height,width,depth]. Images can have
-            different sizes.
+        '''
+        Takes a list of images and modifies them to the format expected as an 
+        input to the neural network.
+        
+        - resize to IMAGE_MIN_DIM / IMAGE_MAX_DIM  : utils.RESIZE_IMAGE()
+        - subtract mean pixel vals from image pxls : utils.MOLD_IMAGE()
+        - build numpy array of image metadata      : utils.COMPOSE_IMAGE_META()
+        
+        images       :     List of image matricies [height,width,depth]. Images can have
+                           different sizes.
 
-        Returns 3 Numpy matricies:
+        Returns 3 Numpy matrices:
+        
         molded_images: [N, h, w, 3]. Images resized and normalized.
         image_metas  : [N, length of meta data]. Details about each image.
         windows      : [N, (y1, x1, y2, x2)]. The portion of the image that has the
                        original image (padding excluded).
-        """
+        '''
+        
         molded_images = []
-        image_metas = []
-        windows = []
+        image_metas   = []
+        windows       = []
+        
         for image in images:
             # Resize image to fit the model expected size
             # TODO: move resizing to mold_image()
@@ -669,46 +771,67 @@ class MaskRCNN():
                 max_dim=self.config.IMAGE_MAX_DIM,
                 padding=self.config.IMAGE_PADDING)
             
+            # subtract mean pixel values from image pixels
             molded_image = utils.mold_image(molded_image, self.config)
             
             # Build image_meta
-            image_meta = utils.compose_image_meta(
-                0, image.shape, window,
-                np.zeros([self.config.NUM_CLASSES], dtype=np.int32))
-            
+            image_meta = utils.compose_image_meta( 0, 
+                                                   image.shape, 
+                                                   window,
+                                                   np.zeros([self.config.NUM_CLASSES],
+                                                   dtype=np.int32))
             # Append
             molded_images.append(molded_image)
-            windows.append(window)
             image_metas.append(image_meta)
+            windows.append(window)
+        
         # Pack into arrays
         molded_images = np.stack(molded_images)
-        image_metas = np.stack(image_metas)
-        windows = np.stack(windows)
+        image_metas   = np.stack(image_metas)
+        windows       = np.stack(windows)
         return molded_images, image_metas, windows
 
         
     def unmold_detections(self, detections, mrcnn_mask, image_shape, window):
-        """Reformats the detections of one image from the format of the neural
-        network output to a format suitable for use in the rest of the
-        application.
+        '''
+        Reformats the detections of one image from the format of the neural
+        network output to a format suitable for use in the rest of the application.
 
-        detections: [N, (y1, x1, y2, x2, class_id, score)]
-        mrcnn_mask: [N, height, width, num_classes]
-        image_shape: [height, width, depth] Original size of the image before resizing
-        window: [y1, x1, y2, x2] Box in the image where the real image is
-                excluding the padding.
+        detections  : [N, (y1, x1, y2, x2, class_id, score)]
+        mrcnn_mask  : [N, height, width, num_classes]
+        image_shape : [height, width, depth] Original size of the image before resizing
+        window      : [y1, x1, y2, x2] Box in the image where the real image is
+                        excluding the padding.
 
         Returns:
-        boxes: [N, (y1, x1, y2, x2)] Bounding boxes in pixels
-        class_ids: [N] Integer class IDs for each bounding box
-        scores: [N] Float probability scores of the class_id
-        masks: [height, width, num_instances] Instance masks
-        """
+        boxes       : [N, (y1, x1, y2, x2)] Bounding boxes in pixels
+        class_ids   : [N] Integer class IDs for each bounding box
+        scores      : [N] Float probability scores of the class_id
+        masks       : [height, width, num_instances] Instance masks
+        '''
+        
+        # print('>>>  unmold_detections ')
+        # print('     detections.shape : ', detections.shape)
+        # print('     mrcnn_mask.shape : ', mrcnn_mask.shape)
+        # print('     image_shape.shape: ', image_shape)
+        # print('     window.shape     : ', window)
+        # print(detections)
+        
         # How many detections do we have?
-        # Detections array is padded with zeros. Find the first class_id == 0.
+        # Detections array is padded with zeros. detections[:,4] identifies the class 
+        # Find all rows in detection array with class_id == 0 , and place their row indices
+        # into zero_ix. zero_ix[0] will identify the first row with class_id == 0.
+        
+        np.set_printoptions(linewidth=100)        
+
         zero_ix = np.where(detections[:, 4] == 0)[0]
+    
         N = zero_ix[0] if zero_ix.shape[0] > 0 else detections.shape[0]
 
+        # print(' np.where() \n', np.where(detections[:, 4] == 0))
+        # print('     zero_ix.shape     : ', zero_ix.shape)
+        # print('     N is :', N)
+        
         # Extract boxes, class_ids, scores, and class-specific masks
         boxes     = detections[:N, :4]
         class_ids = detections[:N, 4].astype(np.int32)
@@ -749,54 +872,6 @@ class MaskRCNN():
         return boxes, class_ids, scores, full_masks
 
         
-    def detect(self, images, verbose=0):
-        '''
-        Runs the detection pipeline.
-
-        images: List of images, potentially of different sizes.
-
-        Returns a list of dicts, one dict per image. The dict contains:
-        rois:           [N, (y1, x1, y2, x2)] detection bounding boxes
-        class_ids:      [N] int class IDs
-        scores:         [N] float probability scores for the class IDs
-        masks:          [H, W, N] instance binary masks
-        '''
-        assert self.mode == "inference", "Create model in inference mode."
-        assert len(images) == self.config.BATCH_SIZE, "len(images) must be equal to BATCH_SIZE"
-
-        if verbose:
-            log("Processing {} images".format(len(images)))
-            for image in images:
-                log("image", image)
-                
-        # Mold inputs to format expected by the neural network
-        molded_images, image_metas, windows = self.mold_inputs(images)
-        if verbose:
-            log("molded_images", molded_images)
-            log("image_metas", image_metas)
-            
-        ## Run object detection
-        detections, mrcnn_class, mrcnn_bbox, mrcnn_mask, \
-            rois, rpn_class, rpn_bbox =\
-            self.keras_model.predict([molded_images, image_metas], verbose=0)
-
-        # Process detections
-        results = []
-        for i, image in enumerate(images):
-            final_rois, final_class_ids, final_scores, final_masks =\
-                self.unmold_detections(detections[i], 
-                                       mrcnn_mask[i],
-                                       image.shape  ,
-                                       windows[i])
-            results.append({
-                "rois"     : final_rois,
-                "class_ids": final_class_ids,
-                "scores"   : final_scores,
-                "masks"    : final_masks,
-            })
-        return results
-
-        
     def ancestor(self, tensor, name, checked=None):
         """Finds the ancestor of a TF tensor in the computation graph.
         tensor: TensorFlow symbolic tensor.
@@ -824,29 +899,6 @@ class MaskRCNN():
             if a is not None:
                 return a
         return None
-
-      
-    def find_trainable_layer(self, layer):
-        """If a layer is encapsulated by another layer, this function
-        digs through the encapsulation and returns the layer that holds
-        the weights.
-        """
-        if layer.__class__.__name__ == 'TimeDistributed':
-            return self.find_trainable_layer(layer.layer)
-        return layer
-
-        
-    def get_trainable_layers(self):
-        """Returns a list of layers that have weights."""
-        layers = []
-        # Loop through all layers
-        for l in self.keras_model.layers:
-            # If layer is a wrapper, find inner trainable layer
-            l = self.find_trainable_layer(l)
-            # Include layer if it has weights
-            if l.get_weights():
-                layers.append(l)
-        return layers
 
         
     def run_graph(self, images, outputs):
@@ -898,6 +950,33 @@ class MaskRCNN():
             log(k, v)
         return outputs_np
 
+      
+    def find_trainable_layer(self, layer):
+        """If a layer is encapsulated by another layer, this function
+        digs through the encapsulation and returns the layer that holds
+        the weights.
+        """
+        if layer.__class__.__name__ == 'TimeDistributed':
+            return self.find_trainable_layer(layer.layer)
+        return layer
+
+        
+    def get_trainable_layers(self):
+        """Returns a list of layers that have weights."""
+        layers = []
+        # Loop through all layers
+        for l in self.keras_model.layers:
+            # If layer is a wrapper, find inner trainable layer
+            l = self.find_trainable_layer(l)
+            # Include layer if it has weights
+            if l.get_weights():
+                layers.append(l)
+            else:
+                print('   Layer: ', l.name, ' doesn''t have any weights !!!')
+        return layers
+
+        
+        
 
     def set_trainable(self, layer_regex, keras_model=None, indent=0, verbose=1):
         
@@ -957,7 +1036,8 @@ class MaskRCNN():
               epochs_to_run     = 0,
               batch_size        = 0, 
               steps_per_epoch   = 0):
-        """Train the model.
+        '''
+        Train the model.
         train_dataset, 
         val_dataset:    Training and validation Dataset objects.
         
@@ -967,6 +1047,7 @@ class MaskRCNN():
                         are considered to be done already, so this actually determines
                         the epochs to train in total rather than in this particaular
                         call.
+        epochs_to_run:  Number of epochs to run, will update the 'epochs parm.                        
                         
         layers:         Allows selecting wich layers to train. It can be:
                         - A regular expression to match layer names to train
@@ -976,12 +1057,12 @@ class MaskRCNN():
                         3+: Train Resnet stage 3 and up
                         4+: Train Resnet stage 4 and up
                         5+: Train Resnet stage 5 and up
-        """
+        '''
         assert self.mode == "training", "Create model in training mode."
         
         if batch_size == 0 :
             batch_size = self.config.BATCH_SIZE
-        if epochs_to_run > 0 and epochs == 0:
+        if epochs_to_run > 0 :
             epochs = self.epoch + epochs_to_run
             
         # use Pre-defined layer regular expressions
@@ -998,22 +1079,26 @@ class MaskRCNN():
                                         batch_size=batch_size,
                                         augment=False)
 
-        my_callback = MyCallback()
+        # my_callback = MyCallback()
+
         # Callbacks
+        ## call back for model checkpoint was originally (?) loss. chanegd to val_loss (which is default) 2-5-18
         callbacks = [
               keras.callbacks.TensorBoard(log_dir=self.log_dir,
                                         histogram_freq=0, write_graph=True, write_images=False)
             , keras.callbacks.ModelCheckpoint(self.checkpoint_path,
-                                            monitor='loss', verbose=1, save_best_only = True, save_weights_only=True)
+                                            monitor='val_loss', verbose=1, save_best_only = True, save_weights_only=True)
         ]
 
         # Train
+
+        self.set_trainable(layers)
+        self.compile(learning_rate, self.config.LEARNING_MOMENTUM)
+        
         log("Starting at epoch {} of {} epochs. LR={}\n".format(self.epoch, epochs, learning_rate))
         log("Steps per epochs {} ".format(self.config.STEPS_PER_EPOCH))
         log("Checkpoint Path: {}".format(self.checkpoint_path))
-        self.set_trainable(layers)
-        self.compile(learning_rate, self.config.LEARNING_MOMENTUM)
-
+        
         self.keras_model.fit_generator(
             train_generator,
             initial_epoch=self.epoch,
@@ -1125,7 +1210,7 @@ class MaskRCNN():
 
         ## setup Checkpoint callback
         chkpoint = keras.callbacks.ModelCheckpoint(self.checkpoint_path, 
-                                                   monitor='loss', verbose=1, save_best_only = True, save_weights_only=True)
+                                                   monitor='val_loss', verbose=1, save_best_only = True, save_weights_only=True)
         chkpoint.set_model(self.keras_model)
 
 
@@ -1188,10 +1273,11 @@ class MaskRCNN():
         self.keras_model._losses = []
         self.keras_model._per_input_losses = {}
 
-        loss_names = [  "rpn_class_loss", "rpn_bbox_loss"
-                      , "mrcnn_class_loss", "mrcnn_bbox_loss", "mrcnn_mask_loss"
-                      # , "fcn_loss", "fcn_norm_loss"
-                     ]
+        # loss_names = [  "rpn_class_loss", "rpn_bbox_loss"
+                      # , "mrcnn_class_loss", "mrcnn_bbox_loss", "mrcnn_mask_loss"
+                     # ]
+                      
+        loss_names = [ "fcn_loss", "fcn_norm_loss" ]
                       
         for name in loss_names:
             layer = self.keras_model.get_layer(name)
@@ -1223,9 +1309,7 @@ class MaskRCNN():
         return
 
 
-    def compile_only(self, 
-              learning_rate, 
-              layers):
+    def compile_only(self, learning_rate, layers):
         '''
         Compile the model without adding loss info
         learning_rate:  The learning rate to train with
@@ -1239,7 +1323,6 @@ class MaskRCNN():
                         4+: Train Resnet stage 4 and up
                         5+: Train Resnet stage 5 and up
         '''
-        
         # Use Pre-defined layer regular expressions
         if layers in self.layer_regex.keys():
             layers = self.layer_regex[layers]

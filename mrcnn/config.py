@@ -32,7 +32,7 @@ class Config(object):
     # handle 2 images of 1024x1024px.
     # Adjust based on your GPU memory and image sizes. Use the highest
     # number that your GPU can handle for best performance.
-    IMAGES_PER_GPU = 2
+    IMAGES_PER_GPU = 1
 
     # Number of training steps per epoch
     # This doesn't need to match the size of the training set. Tensorboard
@@ -41,7 +41,7 @@ class Config(object):
     # Validation stats are also calculated at each epoch end and they
     # might take a while, so don't set this too small to avoid spending
     # a lot of time on validation stats.
-    STEPS_PER_EPOCH = 1000
+    STEPS_PER_EPOCH = 10
 
     # Number of validation steps to run at the end of every training epoch.
     # A bigger number improves accuracy of validation stats, but slows
@@ -143,15 +143,19 @@ class Config(object):
     # the RPN. For example, to debug the classifier head without having to
     # train the RPN.
     USE_RPN_ROIS = True
+    LAST_EPOCH_RAN = 0
+    EPOCHS_TO_RUN  = 0
 
     def __init__(self):
         """Set values of computed attributes."""
         # Effective batch size
+        print(' Initialize config object - super')
         self.BATCH_SIZE = self.IMAGES_PER_GPU * self.GPU_COUNT
-
+     
         # Input image size
         # currently max is 1024 x 1024
         self.IMAGE_SHAPE = np.array([self.IMAGE_MAX_DIM, self.IMAGE_MAX_DIM, 3])
+        self.FCN_INPUT_SHAPE = self.IMAGE_SHAPE[0:2]
 
         # Compute backbone size from input image size
         self.BACKBONE_SHAPES = np.array(
@@ -161,7 +165,8 @@ class Config(object):
 
     def display(self):
         """Display Configuration values."""
-        print("\nConfigurations:")
+        print("\nConfiguration Parameters:")
+        print("-------------------------")
         for a in dir(self):
             if not a.startswith("__") and not callable(getattr(self, a)):
                 print("{:30} {}".format(a, getattr(self, a)))

@@ -188,14 +188,18 @@ class ShapesDataset(Dataset):
         shapes = []
         boxes = []
         N = random.randint(1, 4)
+
         for _ in range(N):
             shape, color, dims = self.random_shape(height, width)
             shapes.append((shape, color, dims))
             x, y, s = dims
             boxes.append([y - s, x - s, y + s, x + s])
-        # Apply non-max suppression wit 0.3 threshold to avoid
-        # shapes covering each other
+        
+        # Suppress occulsions more than 0.3 IoU    
+        # Apply non-max suppression with 0.3 threshold to avoid shapes covering each other
         keep_ixs = utils.non_max_suppression(np.array(boxes), np.arange(N), 0.3)
+        
         shapes = [s for i, s in enumerate(shapes) if i in keep_ixs]
+        
         # print('Original number of shapes {}  # after NMS {}'.format(N, len(shapes)))
         return bg_color, shapes
