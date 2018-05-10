@@ -84,16 +84,27 @@ def load_image_gt(dataset, config, image_id, augment=False,
                         defined in MINI_MASK_SHAPE.
     """
     # Load image and mask
+    # print('=========================')
+    # print(' Load Image GT: ', image_id)
+    # print('=========================')    
     image = dataset.load_image(image_id)
+    
     mask, class_ids = dataset.load_mask(image_id)
+
+    # print(mask.shape, class_ids.shape)
+    # for  i in range( class_ids.shape[-1]) :
+        # print( 'mask ',i, ' class_id :', class_ids[i], mask[:,:,i].shape)
+        # print()
+        # print(np.array2string(np.where(mask[:,:,i],1,0),max_line_width=134, separator = ''))
+    
     shape = image.shape
-    # print('shape of mask is :',mask.shape)
     image, window, scale, padding = utils.resize_image(
         image,
         min_dim=config.IMAGE_MIN_DIM,
         max_dim=config.IMAGE_MAX_DIM,
         padding=config.IMAGE_PADDING)
     mask = utils.resize_mask(mask, scale, padding)
+
     # print('after resize_mask shape is :',mask.shape)
     # Random horizontal flips.
     if augment:
@@ -105,8 +116,9 @@ def load_image_gt(dataset, config, image_id, augment=False,
     # if the corresponding mask got cropped out.
     # bbox: [num_instances, (y1, x1, y2, x2)]
     bbox = utils.extract_bboxes(mask)
-     
-    # Active classes
+    # print('boxes are: \n', bbox)
+    
+    ## Active classes
     # Different datasets have different classes, so track the
     # classes supported in the dataset of this image.
     active_class_ids = np.zeros([dataset.num_classes], dtype=np.int32)

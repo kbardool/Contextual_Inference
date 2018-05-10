@@ -122,11 +122,11 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     
     with tf.control_dependencies(asserts):
         proposals = tf.identity(proposals)
-    print('>>> detection_targets_graph ')
-    print('     propsals.shape        :',  proposals.shape, proposals.get_shape(), KB.int_shape(proposals) )
-    print('     gt_boxes.shape        :',  gt_boxes.shape ,    KB.int_shape(gt_boxes)   )
-    print('     gt_class_ids.shape    :',  gt_class_ids.shape, KB.int_shape(gt_class_ids))
-    print('     gt_masks.shape        :',  gt_masks.shape ,    KB.int_shape(gt_masks)   )
+    # print('>>> detection_targets_graph ')
+    # print('     propsals.shape        :',  proposals.shape, proposals.get_shape(), KB.int_shape(proposals) )
+    # print('     gt_boxes.shape        :',  gt_boxes.shape ,    KB.int_shape(gt_boxes)   )
+    # print('     gt_class_ids.shape    :',  gt_class_ids.shape, KB.int_shape(gt_class_ids))
+    # print('     gt_masks.shape        :',  gt_masks.shape ,    KB.int_shape(gt_masks)   )
 
     # Remove zero padding   
     # non_zeros returns indicies to valid bboxes, which we use to index gt_class_ids, and gt_masks
@@ -324,7 +324,7 @@ class DetectionTargetLayer(KE.Layer):
     def __init__(self, config, **kwargs):
         # super(DetectionTargetLayer, self).__init__(**kwargs)
         super().__init__(**kwargs)
-        print('\n>>> Detection Target Layer ')
+        print('\n>>> Detection Target Layer (Training Mode)')
         self.config = config
 
     def call(self, inputs):

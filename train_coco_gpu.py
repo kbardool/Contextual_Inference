@@ -79,12 +79,10 @@ COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
 # ROOT_DIR          = os.getcwd()
 # MODEL_PATH        = os.path.expanduser('~/models')
 # DATASET_PATH      = os.path.expanduser('~/MLDatasets')
-#### MODEL_DIR         = os.path.join(MODEL_PATH, "mrcnn_logs")
+#### MODEL_DIR           = os.path.join(MODEL_PATH, "mrcnn_logs")
 # COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
 # COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
 # DEFAULT_LOGS_DIR = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
-
-
 
 
 print(COCO_MODEL_PATH)

@@ -82,10 +82,10 @@ def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
     #-----------------------------------------------------------------------------------
     
     ## moved pred_scores to end -- 30-04-2018
-    print('\n    -- pred_tensor tf ------------------------------') 
     # pred_array  = tf.concat([bbox_idx , output_rois, pred_classes_exp , pred_scores], axis=-1)
     pred_array  = tf.concat([ output_rois, pred_classes_exp , pred_scores], axis=-1)
-    print('    pred_array shape:', pred_array.shape)
+    # print('\n    -- pred_tensor tf ------------------------------') 
+    # print('    pred_array shape:', pred_array.shape)
     
     # pred_array = pred_array[~np.all(pred_array[:,:,2:6] == 0, axis=1)]    
     # class_ids = tf.to_int32(pred_array[:,:,6])
@@ -96,14 +96,13 @@ def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
     scatter_ind          = tf.stack([batch_grid , pred_classes, roi_grid],axis = -1)
     pred_scatt = tf.scatter_nd(scatter_ind, pred_array, [batch_size, num_classes, num_rois, num_cols])
     # print('scatter_ind', type(scatter_ind), 'shape',tf.shape(scatter_ind).eval())
-    print('    pred_scatter shape is ', pred_scatt.get_shape(), pred_scatt)
+    # print('    pred_scatter shape is ', pred_scatt.get_shape(), pred_scatt)
     
     #------------------------------------------------------------------------------------
     ## sort pred_scatter in each class dimension based on prediction score (last column)
     #------------------------------------------------------------------------------------
-    # _, sort_inds = tf.nn.top_k(pred_scatt[:,:,:,1], k=pred_scatt.shape[2])   <-- moved score to last column 30-4-2018
     _, sort_inds = tf.nn.top_k(pred_scatt[:,:,:,-1], k=pred_scatt.shape[2])
-    print('    sort inds shape : ', sort_inds.get_shape())
+    # print('    sort inds shape : ', sort_inds.get_shape())
 
     # build indexes to gather rows from pred_scatter based on sort order 
     
@@ -113,11 +112,11 @@ def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
     gather_inds  = tf.stack([batch_grid , class_grid, sort_inds],axis = -1)
     pred_tensor  = tf.gather_nd(pred_scatt, gather_inds, name = 'pred_tensor')
     
-    print('    class_grid  ', type(class_grid) , 'shape', class_grid.get_shape())
-    print('    batch_grid  ', type(batch_grid) , 'shape', batch_grid.get_shape())
-    print('    roi_grid shape', roi_grid.get_shape(), 'roi_grid_exp shape ', roi_grid_exp.get_shape())
-    print('    gather_inds ', type(gather_inds), 'shape', gather_inds.get_shape())
-    print('    pred_tensor (gathered)  : ', pred_tensor.get_shape())
+    # print('    class_grid  ', type(class_grid) , 'shape', class_grid.get_shape())
+    # print('    batch_grid  ', type(batch_grid) , 'shape', batch_grid.get_shape())
+    # print('    roi_grid shape', roi_grid.get_shape(), 'roi_grid_exp shape ', roi_grid_exp.get_shape())
+    # print('    gather_inds ', type(gather_inds), 'shape', gather_inds.get_shape())
+    # print('    pred_tensor (gathered)  : ', pred_tensor.get_shape())
 
     # append an index to the end of each row --- commented out 30-04-2018
     # pred_tensor  = tf.concat([pred_tensor, roi_grid_exp], axis = -1)
@@ -125,10 +124,10 @@ def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
     # count based on pred score > 0 (changed from index 0 to -1 on 30-04-2018)
     pred_cls_cnt = tf.count_nonzero(pred_tensor[:,:,:,-1], axis = -1, name = 'pred_cls_count')
     
-    print('    -- pred_tensor results (bboxes sorted by score) ----')    
-    print('    final pred_tensor shape  : ', pred_tensor.get_shape())
-    print('    final pred_cls_cnt shape : ',pred_cls_cnt.get_shape())
-    print('    complete')
+    # print('    -- pred_tensor results (bboxes sorted by score) ----')    
+    # print('    final pred_tensor shape  : ', pred_tensor.get_shape())
+    # print('    final pred_cls_cnt shape : ',pred_cls_cnt.get_shape())
+    # print('    complete')
 
     return  [pred_tensor, pred_cls_cnt] 
     
@@ -154,7 +153,7 @@ def build_ground_truth_tf(gt_class_ids, norm_gt_bboxes, config):
     #---------------------------------------------------------------------------
     # gt_classes     = gt_class_ids    # batch_size x max gt detections
     gt_classes_exp = tf.to_float(tf.expand_dims(gt_class_ids ,axis=-1))
-    print('    gt_classes_exp shape ', gt_classes_exp.get_shape() )
+    # print('    gt_classes_exp shape ', gt_classes_exp.get_shape() )
 
     ones = tf.ones_like(gt_class_ids)
     zeros= tf.zeros_like(gt_class_ids)
@@ -163,7 +162,7 @@ def build_ground_truth_tf(gt_class_ids, norm_gt_bboxes, config):
     gt_scores  =  tf.where(mask, ones, zeros)
     # pred_scores      = tf.reduce_max(mrcnn_class ,axis=-1, keep_dims=True)   # (32,)
     gt_scores_exp = tf.to_float(tf.expand_dims(gt_scores, axis=-1))
-    print('    pred_ scores shape ', gt_scores.get_shape())
+    # print('    pred_ scores shape ', gt_scores.get_shape())
     
     #---------------------------------------------------------------------------
     # create meshgrid to do something 
@@ -179,12 +178,12 @@ def build_ground_truth_tf(gt_class_ids, norm_gt_bboxes, config):
     # gt_array        = tf.concat([bbox_idx , gt_bboxes, gt_classes_exp, gt_scores_exp], axis=2)
     gt_array        = tf.concat([gt_bboxes, gt_classes_exp, gt_scores_exp], axis=2)
     
-    print('    bbox_idx shape    ', bbox_idx.get_shape())
+    # print('    bbox_idx shape    ', bbox_idx.get_shape())
     # print(bbox_idx.eval()) 
-    print('    gt_array shape    ', gt_array.get_shape())
-    print('    bbox_grid  shape  ', bbox_grid.get_shape())
+    # print('    gt_array shape    ', gt_array.get_shape())
+    # print('    bbox_grid  shape  ', bbox_grid.get_shape())
     # print(bbox_grid.eval())
-    print('    batch_grid shape  ', batch_grid.get_shape())
+    # print('    batch_grid shape  ', batch_grid.get_shape())
     # print(batch_grid.eval())
 
     #------------------------------------------------------------------------------
@@ -196,9 +195,9 @@ def build_ground_truth_tf(gt_class_ids, norm_gt_bboxes, config):
     
     
     # print('-- stack results ----')
-    print('    scatter_ind shape ', scatter_ind.get_shape())
+    # print('    scatter_ind shape ', scatter_ind.get_shape())
     # print(scatter_ind.eval())
-    print('    gt_scatter shape ', gt_scatter.get_shape())
+    # print('    gt_scatter shape ', gt_scatter.get_shape())
     
     #-------------------------------------------------------------------------------
     ## sort in each class dimension based on y2 (column 1)
@@ -212,19 +211,19 @@ def build_ground_truth_tf(gt_class_ids, norm_gt_bboxes, config):
     class_grid, batch_grid, bbox_grid = tf.meshgrid(tf.range(num_classes),tf.range(batch_size), tf.range(num_detections))
     bbox_grid_exp = tf.to_float(tf.expand_dims(bbox_grid, axis = -1))
 
-    print('    build gathering indexes to use in sorting -------')    
-    print('    sort inds shape : ', sort_inds.get_shape())
-    print('    class_grid  shape ', class_grid.get_shape())
+    # print('    build gathering indexes to use in sorting -------')    
+    # print('    sort inds shape : ', sort_inds.get_shape())
+    # print('    class_grid  shape ', class_grid.get_shape())
     # print(class_grid.eval())
-    print('    batch_grid  shape ', batch_grid.get_shape())
+    # print('    batch_grid  shape ', batch_grid.get_shape())
     # print(class_grid.eval())
-    print('    bbox_grid   shape ', bbox_grid.get_shape() , ' bbox_grid_exp shape ', bbox_grid_exp.get_shape())
+    # print('    bbox_grid   shape ', bbox_grid.get_shape() , ' bbox_grid_exp shape ', bbox_grid_exp.get_shape())
     # print(bbox_grid.eval())
 
     gather_inds = tf.stack([batch_grid , class_grid, sort_inds],axis = -1)
     gt_tensor   = tf.gather_nd(gt_scatter, gather_inds, name  = 'gt_tensor')
-    print('    gather_inds shape      : ', gather_inds.get_shape())
-    print('    gt_tensor (gathered)   : ', gt_tensor.get_shape())
+    # print('    gather_inds shape      : ', gather_inds.get_shape())
+    # print('    gt_tensor (gathered)   : ', gt_tensor.get_shape())
     
     # append an index to the end of each row --- commented out 30-04-2018
     # gt_tensor   = tf.concat([gt_tensor, bbox_grid_exp], axis = -1)

@@ -126,9 +126,11 @@ class ShapesDataset(Dataset):
         # print(' Shapes obj mask shape is :',mask.shape)
         for i, (shape, _, dims) in enumerate(info['shapes']):
             mask[:, :, i:i + 1] = self.draw_shape(mask[:, :, i:i + 1].copy(), shape, dims, 1)
-        
+
         # Handle occlusions
         occlusion = np.logical_not(mask[:, :, -1]).astype(np.uint8)
+        # print('Occlusion : \n',np.array2string(np.where(gt_masks[:,:,i],1,0),max_line_width=134, separator = ''))
+
         for i in range(count - 2, -1, -1):
             mask[:, :, i] = mask[:, :, i] * occlusion
             occlusion = np.logical_and(
@@ -203,3 +205,5 @@ class ShapesDataset(Dataset):
         
         # print('Original number of shapes {}  # after NMS {}'.format(N, len(shapes)))
         return bg_color, shapes
+
+        

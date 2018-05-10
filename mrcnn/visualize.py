@@ -213,7 +213,9 @@ def draw_rois(image, rois, refined_rois, mask, class_ids, class_names, limit=10)
     print("Positive Ratio: {:.2f}".format(
         class_ids[class_ids > 0].shape[0] / class_ids.shape[0]))
 
-
+##----------------------------------------------------------------------
+## draw_box
+##----------------------------------------------------------------------
 # TODO: Replace with matplotlib equivalent?
 def draw_box(image, box, color):
     """Draw 3-pixel width bounding boxes on the given image array.
@@ -316,7 +318,7 @@ def plot_overlaps(gt_class_ids, pred_class_ids, pred_scores,
 ##----------------------------------------------------------------------
 def draw_boxes(image, boxes=None, refined_boxes=None,
                masks=None, captions=None, visibilities=None,
-               title="", ax=None):
+               title="", ax=None, width=12):
     """Draw bounding boxes and segmentation masks with differnt
     customizations.
 
@@ -336,7 +338,7 @@ def draw_boxes(image, boxes=None, refined_boxes=None,
 
     # Matplotlib Axis
     if not ax:
-        _, ax = plt.subplots(1, figsize=(12, 12))
+        _, ax = plt.subplots(1, figsize=(width, width))
 
     # Generate random colors
     colors = random_colors(N)
@@ -419,7 +421,9 @@ def draw_boxes(image, boxes=None, refined_boxes=None,
                 ax.add_patch(p)
     ax.imshow(masked_image.astype(np.uint8))
 
-
+##----------------------------------------------------------------------
+## display_table
+##----------------------------------------------------------------------
 def display_table(table):
     """Display values in a table format.
     table: an iterable of rows, and each row is an iterable of values.
@@ -433,7 +437,9 @@ def display_table(table):
     html = "<table>" + html + "</table>"
     IPython.display.display(IPython.display.HTML(html))
 
-
+##----------------------------------------------------------------------
+## display_weight_stats
+##----------------------------------------------------------------------    
 def display_weight_stats(model):
     """Scans all the weights in the model and returns a list of tuples
     that contain stats about each weight.
@@ -466,6 +472,9 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 
+##----------------------------------------------------------------------
+## plot_gaussian
+##----------------------------------------------------------------------    
 def plot_gaussian( Z, title = 'My figure' ):
     fig = plt.figure()
     fig.suptitle(title, fontsize =12 )

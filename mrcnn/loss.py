@@ -162,8 +162,7 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
 ##-----------------------------------------------------------------------
 ##  MRCNN Class loss  
 ##-----------------------------------------------------------------------    
-def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
-                           active_class_ids):
+def mrcnn_class_loss_graph(target_class_ids, pred_class_logits, active_class_ids):
     '''Loss for the classifier head of Mask RCNN.
 
     target_class_ids:       [batch, num_rois]. Integer class IDs. Uses zero

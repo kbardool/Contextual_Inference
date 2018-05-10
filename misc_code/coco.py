@@ -41,19 +41,10 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as maskUtils
 
-from config import Config
-import utils
-import model as modellib
-
-# Root directory of the project
-ROOT_DIR = os.getcwd()
-
-# Path to trained weights file
-COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
-
-# Directory to save logs and model checkpoints, if not provided
-# through the command line argument --logs
-DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
+from   mrcnn.config import Config
+import mrcnn.utils as utils
+import mrcnn.model as modellib
+import mrcnn.dataset as dataset
 
 
 ############################################################
@@ -66,6 +57,7 @@ class CocoConfig(Config):
     to the COCO dataset.
     """
     # Give the configuration a recognizable name
+    print(' Initialize CocoConfig object - super')
     NAME = "coco"
 
     # We use a GPU with 12GB memory, which can fit two images.
@@ -80,30 +72,34 @@ class CocoConfig(Config):
 
 
 ############################################################
-#  Dataset
+#  COCO Dataset Class extension
 ############################################################
 
-class CocoDataset(utils.Dataset):
+class CocoDataset(dataset.Dataset):
+    
     def load_coco(self, dataset_dir, subset, class_ids=None,
                   class_map=None, return_coco=False):
         """Load a subset of the COCO dataset.
-        dataset_dir: The root directory of the COCO dataset.
-        subset: What to load (train, val, minival, val35k)
-        class_ids: If provided, only loads images that have the given classes.
-        class_map: TODO: Not implemented yet. Supports maping classes from
-            different datasets to the same class ID.
+        dataset_dir:    The root directory of the COCO dataset.
+        subset:         What to load (train, val, minival, val35k)
+        class_ids:      If provided, only loads images that have the given classes.
+        class_map:      TODO: Not implemented yet. Supports maping classes from
+                              different datasets to the same class ID.
         return_coco: If True, returns the COCO object.
         """
         # Path
         image_dir = os.path.join(dataset_dir, "train2014" if subset == "train"
                                  else "val2014")
 
+#        image_dir = os.path.join(dataset_dir, "train2017" if subset == "train"
+#                                 else "val2017")
+        
         # Create COCO object
         json_path_dict = {
-            "train": "annotations/instances_train2014.json",
-            "val": "annotations/instances_val2014.json",
-            "minival": "annotations/instances_minival2014.json",
-            "val35k": "annotations/instances_valminusminival2014.json",
+            "train" :   "annotations/instances_train2014.json",
+            "val"   :   "annotations/instances_val2014.json",
+            "minival":  "annotations/instances_minival2014.json",
+            "val35k":   "annotations/instances_valminusminival2014.json",
         }
         coco = COCO(os.path.join(dataset_dir, json_path_dict[subset]))
 
@@ -159,8 +155,10 @@ class CocoDataset(utils.Dataset):
         instance_masks = []
         class_ids = []
         annotations = self.image_info[image_id]["annotations"]
+        
         # Build mask of shape [height, width, instance_count] and list
         # of class IDs that correspond to each channel of the mask.
+        
         for annotation in annotations:
             class_id = self.map_source_class_id(
                 "coco.{}".format(annotation['category_id']))
@@ -191,6 +189,7 @@ class CocoDataset(utils.Dataset):
             # Call super class to return an empty mask
             return super(self.__class__).load_mask(image_id)
 
+        
     def image_reference(self, image_id):
         """Return a link to the image in the COCO Website."""
         info = self.image_info[image_id]
@@ -201,6 +200,7 @@ class CocoDataset(utils.Dataset):
 
     # The following two functions are from pycocotools with a few changes.
 
+    
     def annToRLE(self, ann, height, width):
         """
         Convert annotation which can be polygons, uncompressed RLE to RLE.
@@ -231,7 +231,7 @@ class CocoDataset(utils.Dataset):
 
 
 ############################################################
-#  COCO Evaluation
+#  COCO Evaluation - Build Results
 ############################################################
 
 def build_coco_results(dataset, image_ids, rois, class_ids, scores, masks):
@@ -242,6 +242,7 @@ def build_coco_results(dataset, image_ids, rois, class_ids, scores, masks):
         return []
 
     results = []
+    
     for image_id in image_ids:
         # Loop through detections
         for i in range(rois.shape[0]):
@@ -260,12 +261,15 @@ def build_coco_results(dataset, image_ids, rois, class_ids, scores, masks):
             results.append(result)
     return results
 
+############################################################
+#  Evaluate Coco
+############################################################
 
 def evaluate_coco(model, dataset, coco, eval_type="bbox", limit=0, image_ids=None):
     """Runs official COCO evaluation.
-    dataset: A Dataset object with valiadtion data
-    eval_type: "bbox" or "segm" for bounding box or segmentation evaluation
-    limit: if not 0, it's the number of images to use for evaluation
+    dataset:    A Dataset object with valiadtion data
+    eval_type:  "bbox" or "segm" for bounding box or segmentation evaluation
+    limit:      if not 0, it's the number of images to use for evaluation
     """
     # Pick COCO images from the dataset
     image_ids = image_ids or dataset.image_ids

@@ -162,7 +162,10 @@ class Config(object):
             [[int(math.ceil(self.IMAGE_SHAPE[0] / stride)),
               int(math.ceil(self.IMAGE_SHAPE[1] / stride))]
              for stride in self.BACKBONE_STRIDES])
-
+        print(self.MINI_MASK_SHAPE)
+        
+        
+        
     def display(self):
         """Display Configuration values."""
         print("\nConfiguration Parameters:")

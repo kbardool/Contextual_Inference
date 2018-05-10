@@ -58,6 +58,7 @@ class Dataset(object):
             "id": image_id,
             "source": source,
             "path": path,
+            **kwargs    # added -7-05
         }
         image_info.update(kwargs)
   
@@ -85,10 +86,10 @@ class Dataset(object):
 
         # Build (or rebuild) everything else from the info dicts.
         self.num_classes = len(self.class_info)
-        self.class_ids = np.arange(self.num_classes)
+        self.class_ids   = np.arange(self.num_classes)
         self.class_names = [clean_name(c["name"]) for c in self.class_info]
-        self.num_images = len(self.image_info)
-        self._image_ids = np.arange(self.num_images)
+        self.num_images  = len(self.image_info)
+        self._image_ids  = np.arange(self.num_images)
 
         self.class_from_source_map = {"{}.{}".format(info['source'], info['id']): id
                                       for info, id in zip(self.class_info, self.class_ids)}
