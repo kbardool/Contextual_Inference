@@ -33,6 +33,10 @@ import keras.engine as KE
 # sys.path.append('..')
 # import mrcnn.utils as utils
 from mrcnn.utils import apply_box_deltas, non_max_suppression
+import pprint
+pp = pprint.PrettyPrinter(indent=2, width=100)
+np.set_printoptions(linewidth=100)
+
 
 ############################################################
 #  Detection Layer
@@ -69,11 +73,7 @@ def refine_detections(rois, probs, deltas, window, config):
     --------
     detections      [N, (y1, x1, y2, x2, class_id, score)]
     '''
-    print('       rois  :',   rois.shape  ) #  ,   rois.get_shape(), KB.int_shape(  rois) )
-    print('      probs :',   probs.shape  ) #  ,  probs.get_shape(), KB.int_shape( probs) ) 
-    print('     deltas :',  deltas.shape  ) #  , deltas.get_shape(), KB.int_shape(deltas) )
-    print('     window :',  window.shape  ) #  , window.get_shape(), KB.int_shape(window) ) 
-    print('     window ::', window.shape, '\n', window)   
+
     
     ##  1. Find Class IDs with higest scores for each per ROI
     class_ids       = np.argmax(probs, axis=1)
@@ -112,13 +112,17 @@ def refine_detections(rois, probs, deltas, window, config):
     pre_nms_scores    = class_scores[keep]
     pre_nms_rois      = refined_rois[keep]
     nms_keep          = []
-    print(' apply per class nms')    
+    # print(' apply per class nms')    
     for class_id in np.unique(pre_nms_class_ids):
         # Pick detections of this class
         ixs = np.where(pre_nms_class_ids == class_id)[0]
+
+        # print('class_id : ', class_id)
+        # print('pre_nms_rois.shape:', pre_nms_rois[ixs].shape)
+        # pp.pprint(pre_nms_rois[ixs])
+        # print('pre_nms_scores.shape :', pre_nms_scores[ixs].shape)
+        # pp.pprint(pre_nms_scores[ixs])    
         # Apply NMS
-        print('class_id : ', class_id, 'pre_nms_rois.shape:', pre_nms_rois[ixs].shape,
-               'pre_nms_scores.shape :', pre_nms_scores[ixs].shape)
         class_keep = non_max_suppression(pre_nms_rois[ixs], 
                                          pre_nms_scores[ixs],
                                          config.DETECTION_NMS_THRESHOLD)
@@ -185,11 +189,11 @@ class DetectionLayer(KE.Layer):
         def wrapper(rois, mrcnn_class, mrcnn_bbox, image_meta):
             from mrcnn.utils import parse_image_meta
             detections_batch = []
-            print('    Wrapper for Detection Layer : call() ', type(inputs), len(inputs))    
-            print('     rpn_proposals_roi  :',  inputs[0].shape, rois.shape, type(rois)) # , inputs[0].get_shape(), KB.int_shape(inputs[0]) )
-            print('     mrcnn_class.shape  :',  inputs[1].shape, mrcnn_class.shape, type(mrcnn_class)) # , inputs[1].get_shape(), KB.int_shape(inputs[1]) ) 
-            print('     mrcnn_bboxes.shape :',  inputs[2].shape, mrcnn_bbox.shape, type(mrcnn_bbox)) # , inputs[2].get_shape(), KB.int_shape(inputs[2]) )
-            print('     image_meta         :',  inputs[3].shape, image_meta.shape, type(image_meta)) # , inputs[3].get_shape(), KB.int_shape(inputs[3]) ) 
+            # print('    Wrapper for Detection Layer : call() ', type(inputs), len(inputs))    
+            # print('     rpn_proposals_roi  :',  inputs[0].shape, rois.shape, type(rois)) # , inputs[0].get_shape(), KB.int_shape(inputs[0]) )
+            # print('     mrcnn_class.shape  :',  inputs[1].shape, mrcnn_class.shape, type(mrcnn_class)) # , inputs[1].get_shape(), KB.int_shape(inputs[1]) ) 
+            # print('     mrcnn_bboxes.shape :',  inputs[2].shape, mrcnn_bbox.shape, type(mrcnn_bbox)) # , inputs[2].get_shape(), KB.int_shape(inputs[2]) )
+            # print('     image_meta         :',  inputs[3].shape, image_meta.shape, type(image_meta)) # , inputs[3].get_shape(), KB.int_shape(inputs[3]) ) 
                 
             # process item per item in batch 
             

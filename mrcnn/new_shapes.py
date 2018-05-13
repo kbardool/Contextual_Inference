@@ -13,7 +13,8 @@ from   mrcnn.dataset import Dataset
 from mrcnn.utils     import non_max_suppression, mask_string
 # import mrcnn.utils as utils
 import pprint
-pp = pprint.PrettyPrinter(indent=2, width=100)
+p4 = pprint.PrettyPrinter(indent=4, width=100)
+p8 = pprint.PrettyPrinter(indent=8, width=100)
 
  
 
@@ -34,7 +35,7 @@ class NewShapesConfig(Config):
 
     # Number of classes (including background)
     NUM_CLASSES = 1 + 6  # background + 6 shapes
-
+    SHAPES_PER_IMAGE = 7
 
     # Use small images for faster training. Set the limits of the small side
     # the large side, and that determines the image shape.
@@ -67,7 +68,7 @@ class NewShapesDataset(Dataset):
         # self.width  = width 
     
     
-    def load_shapes(self, count, height, width):
+    def load_shapes(self, count, height, width, shapes_per_image=7, buffer = 20):
         '''
         Generate the requested number of synthetic images.
         count: number of images to generate.
@@ -85,9 +86,9 @@ class NewShapesDataset(Dataset):
         self.add_class("shapes", 4, "building")
         self.add_class("shapes", 5, "tree")
         self.add_class("shapes", 6, "cloud")
-        self.buffer = 20
-        
-        buffer = self.buffer
+        self.buffer = buffer
+        self.shapes_per_image = shapes_per_image
+        print(' Shapes Per Image: ', self.shapes_per_image)
         self.Min_Y = {}
         self.Max_Y = {}
         self.Min_X = {}
@@ -131,7 +132,8 @@ class NewShapesDataset(Dataset):
         # list of shapes sizes and locations). This is more compact than
         # actual images. Images are generated on the fly in load_image().
         for i in range(count):
-            print(' Add image ---> ',i )
+            if i % 25 == 0:
+                print(' Add image ---> ',i )
             bg_color, shapes = self.random_image(i, height, width)
             self.add_image("shapes", image_id=i, path=None,
                            width=width, height=height,
@@ -150,7 +152,7 @@ class NewShapesDataset(Dataset):
         image = np.ones([info['height'], info['width'], 3], dtype=np.uint8)
         image = image * bg_color.astype(np.uint8)
         # print(" Load Image : Shapes ")
-        # pp.pprint(info['shapes'])
+        # p4.pprint(info['shapes'])
 
         for shape, color, dims in info['shapes']:
             image = self.draw_shape(image, shape, dims, color)        
@@ -175,7 +177,7 @@ class NewShapesDataset(Dataset):
         shapes = info['shapes']
         
         # print('\n Load Mask information (shape, (color rgb), (x_ctr, y_ctr, size) ): ')
-        # pp.pprint(info['shapes'])
+        # p4.pprint(info['shapes'])
         count  = len(shapes)
         mask   = np.zeros([info['height'], info['width'], count], dtype=np.uint8)
 
@@ -209,7 +211,7 @@ class NewShapesDataset(Dataset):
         '''
 
         # print('\n Load Mask information (shape, (color rgb), (x_ctr, y_ctr, size) ): ')
-        # pp.pprint(info['shapes'])
+        # p4.pprint(info['shapes'])
         hidden_shapes = []
         count  = len(shapes)
         mask   = np.zeros( [height, width, count], dtype=np.uint8)
@@ -237,15 +239,15 @@ class NewShapesDataset(Dataset):
             ## and later remove them from the  list of shapes 
             ##-------------------------------------------------------------------------------------
             if ( ~np.any(mask[:,:,i]) ) :
-                print(' !!!!!!  Zero Mask Found !!!!!!' )
+                # print(' !!!!!!  Zero Mask Found !!!!!!' )
                 hidden_shapes.append(i)
 
-        if len(hidden_shapes) > 0 :
-            print(' ===> Find Hidden Shapes() found hidden objects ')
-            pp.pprint(shapes)
-            print(' ****** Objects completely hidden are : ', hidden_shapes)
-            for i in hidden_shapes:
-                pp.pprint(shapes[i])
+        # if len(hidden_shapes) > 0 :
+            # print(' ===> Find Hidden Shapes() found hidden objects ')
+            # p8.pprint(shapes)
+            # print(' ****** Objects completely hidden are : ', hidden_shapes)
+            # for i in hidden_shapes:
+                # p8.pprint(shapes[i])
         return hidden_shapes
     
     
@@ -436,7 +438,7 @@ class NewShapesDataset(Dataset):
         # Generate a few random shapes and record their
         # bounding boxes
         shapes     = []
-        N = random.randint(1, 7)    # number to shapes in image 
+        N = random.randint(1, self.shapes_per_image)    # number to shapes in image 
         
         shape_choices = ["person", "car", "sun", "building", "tree", "cloud"]
         
@@ -461,7 +463,7 @@ class NewShapesDataset(Dataset):
         sorted_shape_ind = np.argsort(np.array(sort_lst))[::+1]
 
         # print(" =====  Before final sort =====  ")
-        # pp.pprint(shapes)
+        # p4.pprint(shapes)
         # print(sort_lst)
         # print(sorted_shape_ind)
         tmp_shapes = []
@@ -469,18 +471,23 @@ class NewShapesDataset(Dataset):
             tmp_shapes.append(shapes[i])
         shapes = tmp_shapes        
         # print(' ===== Sahpes after sorting ===== ')
-        # pp.pprint(shapes)
+        # p4.pprint(shapes)
 
             
         ##-------------------------------------------------------------------------------
         ## find and remove shapes completely covered by other shapes 
         ##-------------------------------------------------------------------------------
         hidden_shape_ixs = self.find_hidden_shapes(shapes, height, width)    
-        non_hidden_shapes = [s for i, s in enumerate(shapes) if i not in hidden_shape_ixs]
         if len(hidden_shape_ixs) > 0: 
-            print('(',image_id, ') ------ shapes after removeal of totally hidden shapes ------' )
-            pp.pprint(non_hidden_shapes)
+            non_hidden_shapes = [s for i, s in enumerate(shapes) if i not in hidden_shape_ixs]
+            print('    ===> Image Id : (',image_id, ')   ---- Zero Mask Encountered ') 
+            print('    ------ Original Shapes ------' )
+            p8.pprint(shapes)
+            print('    ------ shapes after removal of totally hidden shapes ------' )
+            p8.pprint(non_hidden_shapes)
             print('    Number of shapes now is : ', len(non_hidden_shapes))
+        else: 
+            non_hidden_shapes = shapes
 
         ##-------------------------------------------------------------------------------
         ## build boxes for to pass to non_max_suppression
@@ -513,7 +520,7 @@ class NewShapesDataset(Dataset):
         sorted_shape_ind = np.argsort(np.array(sort_lst))[::+1]
 
         # print(" =====  Before final sort =====  ")
-        # pp.pprint(shapes)
+        # p4.pprint(shapes)
         # print(sort_lst)
         # print(sorted_shape_ind)
         tmp_shapes = []
@@ -521,7 +528,7 @@ class NewShapesDataset(Dataset):
             tmp_shapes.append(shapes[i])
         shapes = tmp_shapes        
         # print(' ===== Sahpes after sorting ===== ')
-        # pp.pprint(shapes)
+        # p4.pprint(shapes)
 
         return bg_color, shapes    
     

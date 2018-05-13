@@ -222,6 +222,8 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
     target_class_ids = KB.reshape(target_class_ids, (-1,))
     target_bbox      = KB.reshape(target_bbox, (-1, 4))
     pred_bbox        = KB.reshape(pred_bbox, (-1, KB.int_shape(pred_bbox)[2], 4))
+    print('    reshpaed pred_bbox size         :', pred_bbox.shape)
+    print('    reshaped target_bbox size       :', target_bbox.shape)    
 
     # Only positive ROIs contribute to the loss. And only
     # the right class_id of each ROI. Get their indicies.
@@ -232,7 +234,9 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
     # Gather the deltas (predicted and true) that contribute to loss
     target_bbox = tf.gather(target_bbox, positive_roi_ix)
     pred_bbox   = tf.gather_nd(pred_bbox, indices)
-
+    print('    pred_bbox size         :', pred_bbox.shape)
+    print('    target_bbox size       :', target_bbox.shape)    
+    
     # Smooth-L1 Loss
     loss        = KB.switch(tf.size(target_bbox) > 0,
                     smooth_l1_loss(y_true=target_bbox, y_pred=pred_bbox),
@@ -284,8 +288,9 @@ def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
 
     # Gather the masks (predicted and true) that contribute to loss
     y_true = tf.gather(target_masks, positive_ix)
-    print('     y_true shape:', y_true.get_shape())
+
     y_pred = tf.gather_nd(pred_masks, indices)
+    print('     y_true shape:', y_true.get_shape())
     print('     y_pred shape:', y_pred.get_shape())
     # Compute binary cross entropy. If no positive ROIs, then return 0.
     # shape: [batch, roi, num_classes]
@@ -297,6 +302,59 @@ def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
     print('     final loss shape:', loss.get_shape(), type(loss), KB.is_keras_tensor(loss))
     return loss
 
+
+    
+##-----------------------------------------------------------------------
+##  FCN bbox loss
+##-----------------------------------------------------------------------    
+def fcn_bbox_loss_graph(target_bbox_deltas, target_class_ids, fcn_bbox_deltas):
+    ''' 
+    Loss for FCN heatmap corresponding bounding box refinement.
+
+    target_bbox_deltas  :   [batch, num_classes, num_rois, (dy, dx, log(dh), log(dw), class_id, score)]
+                            last two are removed for loss calculation via [...,:-2]
+    target_class_ids    :   [batch, num_rois]. Integer class IDs.
+    fcn_bbox_deltas     :   [batch, num_classes, num_rois,  (dy, dx, log(dh), log(dw))]
+    
+    '''
+    print('\n>>> fcn_bbox_loss_graph ' )
+    print('    target_class_ids  :', target_class_ids.shape)
+    print('    fcn_bbox_deltas   :', fcn_bbox_deltas.shape)
+    print('    target_bbox_deltas    :', target_bbox_deltas.shape)    
+
+    ## Reshape to merge batch and roi dimensions for simplicity.
+    class_array   = KB.reshape(target_bbox_deltas[...,-2]  , (-1, 1))
+    tgt_bbox      = KB.reshape(target_bbox_deltas[...,:-2] , (-1, 4))
+    pred_bbox     = KB.reshape(fcn_bbox_deltas, (-1, 4))
+    print('    reshaped class_array            :', class_array.shape)
+    print('    reshaped pred_bbox size         :', pred_bbox.shape)
+    print('    reshaped target_bbox size       :', tgt_bbox.shape)    
+
+    ## Only positive ROIs contribute to the loss. And only the right 
+    ## class_id of each ROI. Get their indicies.
+
+    pos_ix = tf.where(target_bbox_deltas[...,-2] > 0)
+ 
+    ## Gather the deltas (predicted and true) that contribute to loss
+  
+    # IMPORTANT: THE :-2 IS TO PREVENT ADDITIONAL ELEMENTS FROM BEING COPIED
+    y_true = tf.gather_nd(target_bbox_deltas[...,:-2], pos_ix)
+    y_pred = tf.gather_nd(fcn_bbox_deltas, pos_ix)
+    # print(y_pred.eval(session=sess))
+    # print(tf.shape(y_pred).eval(session=sess), tf.shape(y_true).eval(session=sess))    
+    print('    y_true shape:', y_true.get_shape())
+    print('    y_pred shape:', y_pred.get_shape())
+
+    
+    ## Smooth-L1 Loss
+    loss        = KB.switch(tf.size(y_true) > 0,
+                    smooth_l1_loss(y_true=y_true, y_pred=y_pred),
+                    tf.constant(0.0))
+    loss        = KB.mean(loss)
+    loss        = KB.reshape(loss, [1, 1])
+    return loss
+
+    
 ##-----------------------------------------------------------------------
 ##  FCN loss
 ##-----------------------------------------------------------------------    
@@ -314,20 +372,17 @@ def fcn_loss_graph(target_masks, pred_masks):
     print('\n>>> fcn_loss_graph ' )
     print('    target_masks     shape :', target_masks.get_shape(), KB.shape(target_masks))
     print('    target_masks is keras tensor:', KB.is_keras_tensor(target_masks))
-
     print('    pred_masks       shape :', pred_masks.get_shape()  , KB.shape(pred_masks))    
     print('    pred_masks is keras tensor:', KB.is_keras_tensor(pred_masks))
     
-    target_shape       = KB.shape(target_masks)
-    print('    target_shape       shape :', target_shape.shape)    
-    
+    target_shape     = KB.shape(target_masks)
     target_masks     = KB.reshape(target_masks, (-1, target_shape[1], target_shape[2]))
-    print('    target_masks     shape :', target_masks.shape)        
-    
     pred_shape       = KB.shape(pred_masks)
-    print('    pred_shape       shape :', pred_shape.shape)        
-    
     pred_masks       = KB.reshape(pred_masks, (-1, pred_shape[1], pred_shape[2]))
+
+    print('    target_shape     shape :', target_shape.shape)    
+    print('    target_masks     shape :', target_masks.shape)        
+    print('    pred_shape       shape :', pred_shape.shape)        
     print('    pred_masks       shape :', pred_masks.get_shape())        
 
     # Compute binary cross entropy. If no positive ROIs, then return 0.
@@ -346,22 +401,22 @@ def fcn_loss_graph(target_masks, pred_masks):
 ##-----------------------------------------------------------------------
 ##  FCN loss
 ##-----------------------------------------------------------------------    
-def fcn_norm_loss_graph(target_masks, pred_masks):
+def fcn_norm_loss_graph(target_masks, pred_heatmap):
     '''
     Mask binary cross-entropy loss for the masks head.
     target_masks:       [batch, height, width, num_classes].
-    pred_masks:         [batch, height, width, num_classes] float32 tensor
+    pred_heatmap:         [batch, height, width, num_classes] float32 tensor
     '''
     # Reshape for simplicity. Merge first two dimensions into one.
     print('\n>>> fcn_norm_loss_graph ' )
     print('    target_masks     shape :', target_masks.shape)
-    print('    pred_masks       shape :', pred_masks.shape)    
+    print('    pred_heatmap       shape :', pred_heatmap.shape)    
     print('\n    L2 normalization ------------------------------------------------------')   
-    pred_shape=KB.shape(pred_masks)
-    print(' pred_shape: KB.shape:' , pred_shape, ' tf.get_shape(): ', pred_masks.get_shape(), ' pred_maks.shape:', 
-                                     pred_masks.shape, 'tf.shape :', tf.shape(pred_masks))
+    pred_shape=KB.shape(pred_heatmap)
+    print(' pred_shape: KB.shape:' , pred_shape, ' tf.get_shape(): ', pred_heatmap.get_shape(), ' pred_maks.shape:', 
+                                     pred_heatmap.shape, 'tf.shape :', tf.shape(pred_heatmap))
     
-    output_flatten = KB.reshape(pred_masks, (pred_shape[0], -1, pred_shape[-1]) )
+    output_flatten = KB.reshape(pred_heatmap, (pred_shape[0], -1, pred_shape[-1]) )
     output_norm1   = KB.l2_normalize(output_flatten, axis = 1)    
     output_norm    = KB.reshape(output_norm1,  pred_shape )    
 
@@ -383,21 +438,21 @@ def fcn_norm_loss_graph(target_masks, pred_masks):
     print('    gauss_norm shape      : ',   gauss_norm1.shape,   gauss_norm1.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_norm1) )
     print('    gauss_norm final shape: ',    gauss_norm.shape,    gauss_norm.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_norm) )
     
-    pred_masks1   = output_norm
+    pred_heatmap1   = output_norm
     target_masks1 = gauss_norm
 
     # pred_shape    = KB.shape(target_masks1)
     # print('    pred_shape shape :', pred_shape.eval(), KB.int_shape(pred_shape))    
     target_masks1 = KB.reshape(target_masks1, (-1, pred_shape[1], pred_shape[2]))
     print('    target_masks1 shape :', target_masks1.get_shape(), KB.int_shape(target_masks1))        
-    pred_masks1   = KB.reshape(pred_masks1  , (-1, pred_shape[1], pred_shape[2]))
-    print('    pred_masks1  shape :', pred_masks1.get_shape())        
+    pred_heatmap1   = KB.reshape(pred_heatmap1  , (-1, pred_shape[1], pred_shape[2]))
+    print('    pred_heatmap1  shape :', pred_heatmap1.get_shape())        
 
     # Compute binary cross entropy. If no positive ROIs, then return 0.
     # shape: [batch, roi, num_classes]
     # Smooth-L1 Loss
     loss        = KB.switch(tf.size(target_masks1) > 0,
-                    smooth_l1_loss(y_true=target_masks1, y_pred=pred_masks1),
+                    smooth_l1_loss(y_true=target_masks1, y_pred=pred_heatmap1),
                     tf.constant(0.0))
     loss        = KB.mean(loss)
     loss        = KB.reshape(loss, [1, 1])

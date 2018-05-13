@@ -25,7 +25,6 @@ import pprint
      
     
 def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
-    # // pass model to TensorBuilder
     batch_size      = config.BATCH_SIZE
     num_classes     = config.NUM_CLASSES
     h, w            = config.IMAGE_SHAPE[:2]
@@ -38,7 +37,7 @@ def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
     print('  > BUILD_PREDICTIONS_TF()')
     print('    num_rois          : ', num_rois )
     print('    mrcnn_class shape : ', KB.shape(mrcnn_class), KB.int_shape(mrcnn_class))
-    print('    mrcnn_bbox.shape  : ', KB.shape(mrcnn_bbox), KB.int_shape(mrcnn_bbox), mrcnn_bbox.shape )
+    print('    mrcnn_bbox.shape  : ', KB.shape(mrcnn_bbox) , KB.int_shape(mrcnn_bbox), mrcnn_bbox.shape )
     print('    output_rois.shape : ', KB.shape(output_rois), KB.int_shape(output_rois))
     #---------------------------------------------------------------------------
     # use the argmaxof each row to determine the dominating (predicted) class
@@ -55,17 +54,6 @@ def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
     print('    pred_classes_exp : ', pred_classes_exp.shape)
     print('    pred_scores      : ', pred_scores.shape)
     
-
-    batch_grid, roi_grid = tf.meshgrid( tf.range(batch_size, dtype=tf.int32),
-                                        tf.range(num_rois, dtype=tf.int32), indexing = 'ij' )
-    bbox_idx             = tf.to_float(tf.expand_dims(roi_grid , axis = -1))    
-    
-    print('    batch_grid       : ', batch_grid.shape)
-    print('    roi_grid         : ', roi_grid.shape)
-    print('    bbox_idx         : ', bbox_idx.shape)
-    # print(roi_grid.eval())
-    # print(batch_grid.eval())
-
     #-----------------------------------------------------------------------------------
     # This part is used if we want to gather bbox coordinates from mrcnn_bbox 
     #  Currently we are gathering bbox coordinates form output_roi so we dont need this
@@ -84,28 +72,28 @@ def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
     ## moved pred_scores to end -- 30-04-2018
     # pred_array  = tf.concat([bbox_idx , output_rois, pred_classes_exp , pred_scores], axis=-1)
     pred_array  = tf.concat([ output_rois, pred_classes_exp , pred_scores], axis=-1)
-    # print('\n    -- pred_tensor tf ------------------------------') 
-    # print('    pred_array shape:', pred_array.shape)
-    
-    # pred_array = pred_array[~np.all(pred_array[:,:,2:6] == 0, axis=1)]    
-    # class_ids = tf.to_int32(pred_array[:,:,6])
-    # print('    class shape: ', class_ids.get_shape())
-    # print(class_ids.eval())
+
+    #---------------------------------------------------------------------------
+    # Build a meshgrid for image id and bbox to use in gathering of bbox information 
+    #---------------------------------------------------------------------------
+    batch_grid, roi_grid = tf.meshgrid( tf.range(batch_size, dtype=tf.int32),
+                                        tf.range(num_rois, dtype=tf.int32), indexing = 'ij' )
+    # bbox_idx             = tf.to_float(tf.expand_dims(roi_grid , axis = -1))    
+    print('    batch_grid       : ', batch_grid.shape)
+    print('    roi_grid         : ', roi_grid.shape)
 
 
     scatter_ind          = tf.stack([batch_grid , pred_classes, roi_grid],axis = -1)
-    pred_scatt = tf.scatter_nd(scatter_ind, pred_array, [batch_size, num_classes, num_rois, num_cols])
+    pred_scatt = tf.scatter_nd(scatter_ind, pred_array, [batch_size, num_classes, num_rois, pred_array.shape[-1]])
     # print('scatter_ind', type(scatter_ind), 'shape',tf.shape(scatter_ind).eval())
     # print('    pred_scatter shape is ', pred_scatt.get_shape(), pred_scatt)
     
     #------------------------------------------------------------------------------------
-    ## sort pred_scatter in each class dimension based on prediction score (last column)
+    ## sort pred_scatter in each class dimension based on sequence number (last column)
     #------------------------------------------------------------------------------------
     _, sort_inds = tf.nn.top_k(pred_scatt[:,:,:,-1], k=pred_scatt.shape[2])
-    # print('    sort inds shape : ', sort_inds.get_shape())
 
-    # build indexes to gather rows from pred_scatter based on sort order 
-    
+    # build indexes to gather rows from pred_scatter based on sort order    
     class_grid, batch_grid, roi_grid = tf.meshgrid(tf.range(num_classes),tf.range(batch_size), tf.range(num_rois))
     roi_grid_exp = tf.to_float(tf.expand_dims(roi_grid, axis = -1))
     
@@ -121,122 +109,114 @@ def build_predictions_tf(mrcnn_class, mrcnn_bbox, norm_output_rois, config):
     # append an index to the end of each row --- commented out 30-04-2018
     # pred_tensor  = tf.concat([pred_tensor, roi_grid_exp], axis = -1)
     
-    # count based on pred score > 0 (changed from index 0 to -1 on 30-04-2018)
-    pred_cls_cnt = tf.count_nonzero(pred_tensor[:,:,:,-1], axis = -1, name = 'pred_cls_count')
-    
-    # print('    -- pred_tensor results (bboxes sorted by score) ----')    
     # print('    final pred_tensor shape  : ', pred_tensor.get_shape())
-    # print('    final pred_cls_cnt shape : ',pred_cls_cnt.get_shape())
     # print('    complete')
 
-    return  [pred_tensor, pred_cls_cnt] 
+    return  pred_tensor
     
     
     
-def build_ground_truth_tf(gt_class_ids, norm_gt_bboxes, config):
+def build_ground_truth_tf(gt_class_ids, gt_bboxes, num_bboxes, config):
     # // pass model to TensorBuilder
     batch_size      = config.BATCH_SIZE
     num_classes     = config.NUM_CLASSES
-    num_detections  = config.DETECTION_MAX_INSTANCES
     h, w            = config.IMAGE_SHAPE[:2]
-    num_cols        = 6
+    num_cols        = 7
+    
+    # num of bounding boxes is determined by bbox_list.shape[1] instead of config.DETECTION_MAX_INSTANCES
+    # use of this routine for both input_gt_boxes, and target_gt_deltas
+    if num_bboxes == config.DETECTION_MAX_INSTANCES:
+        tensor_name = "gt_tensor"
+    else:
+        tensor_name = "gt_deltas"
+        
     print('\n')
     print('  > BUILD_GROUND TRUTH_TF()' )
-    print('    gt_class_ids shape : ', gt_class_ids.shape, '    notm_gt_bbox.shape  : ', norm_gt_bboxes.shape )
-
-    # sess = tf.InteractiveSession()
-    gt_bboxes       = norm_gt_bboxes * np.array([h,w,h,w])   
+    print('    gt_class_ids shape : ', gt_class_ids.get_shape())
+    print('    gt_bboxes.shape    : ', gt_bboxes.get_shape() )
 
     #---------------------------------------------------------------------------
     # use the argmaxof each row to determine the dominating (predicted) class
     # mask identifies class_ids > 0 
     #---------------------------------------------------------------------------
-    # gt_classes     = gt_class_ids    # batch_size x max gt detections
     gt_classes_exp = tf.to_float(tf.expand_dims(gt_class_ids ,axis=-1))
-    # print('    gt_classes_exp shape ', gt_classes_exp.get_shape() )
+    print('    gt_classes_exp shape ', gt_classes_exp.get_shape() )
 
     ones = tf.ones_like(gt_class_ids)
     zeros= tf.zeros_like(gt_class_ids)
     mask = tf.greater(gt_class_ids , 0)
 
-    gt_scores  =  tf.where(mask, ones, zeros)
+    gt_scores     = tf.where(mask, ones, zeros)
     # pred_scores      = tf.reduce_max(mrcnn_class ,axis=-1, keep_dims=True)   # (32,)
-    gt_scores_exp = tf.to_float(tf.expand_dims(gt_scores, axis=-1))
-    # print('    pred_ scores shape ', gt_scores.get_shape())
-    
+    gt_scores_exp = tf.to_float(KB.expand_dims(gt_scores, axis=-1))
+    print('    gt_scores_exp shape ', gt_scores_exp.get_shape())
+
     #---------------------------------------------------------------------------
     # create meshgrid to do something 
     #---------------------------------------------------------------------------
-    batch_grid, bbox_grid = tf.meshgrid( tf.range(batch_size    , dtype=tf.int32), 
-                                         tf.range(num_detections, dtype=tf.int32), indexing = 'ij' )
+    batch_grid, bbox_grid = tf.meshgrid( tf.range(batch_size, dtype=tf.int32), 
+                                         tf.range(num_bboxes, dtype=tf.int32), indexing = 'ij' )
     
-    
-    bbox_idx_zeros  = tf.zeros_like(bbox_grid)
-    bbox_idx        = tf.where(mask, bbox_grid , bbox_idx_zeros)
-    bbox_idx        = tf.to_float(tf.expand_dims(bbox_idx, axis = -1))    
-    
-    # gt_array        = tf.concat([bbox_idx , gt_bboxes, gt_classes_exp, gt_scores_exp], axis=2)
-    gt_array        = tf.concat([gt_bboxes, gt_classes_exp, gt_scores_exp], axis=2)
-    
-    # print('    bbox_idx shape    ', bbox_idx.get_shape())
-    # print(bbox_idx.eval()) 
-    # print('    gt_array shape    ', gt_array.get_shape())
-    # print('    bbox_grid  shape  ', bbox_grid.get_shape())
-    # print(bbox_grid.eval())
+    # sequence id is used to preserve the order of rois as passed to this routine
+    sequence = gt_scores * (bbox_grid[...,::-1] + 1) 
+    sequence = tf.to_float(tf.expand_dims(sequence, axis = -1))   
+
     # print('    batch_grid shape  ', batch_grid.get_shape())
-    # print(batch_grid.eval())
+    # print(batch_grid.eval(session=sess))
+    # print('    bbox_grid  shape  ', bbox_grid.get_shape())
+    # print(bbox_grid.eval(session=sess))
+    # print('    sequence shape    ', sequence.get_shape())
+    # print(sequence.eval(session=sess)) 
+
+    # obsolete replaced with sequence 12-05-2018    
+    # bbox_idx_zeros  = tf.zeros_like(bbox_grid)
+    # bbox_idx        = tf.where(mask, bbox_grid , bbox_idx_zeros)
+    # bbox_idx        = tf.to_float(tf.expand_dims(bbox_idx, axis = -1))    
+    
+    # 12-05-2018 (added sequecne)    gt_array        = tf.concat([gt_bboxes, gt_classes_exp, gt_scores_exp], axis=2)
+    gt_array        = tf.concat([gt_bboxes, gt_classes_exp, gt_scores_exp, sequence ], axis=2)
+    print('    gt_array shape :', gt_array.shape, gt_array.get_shape())
 
     #------------------------------------------------------------------------------
     # Create indicies to scatter rois out to multi-dim tensor by image id and class
-    # resulting tensor is batch size x num_classes x num_detections x 7 (num columns)
+    # resulting tensor is batch size x num_classes x num_bboxes x 7 (num columns)
     #------------------------------------------------------------------------------
     scatter_ind = tf.stack([batch_grid , gt_class_ids, bbox_grid],axis = -1)
-    gt_scatter = tf.scatter_nd(scatter_ind, gt_array, [batch_size, num_classes, num_detections, num_cols] )
-    
-    
-    # print('-- stack results ----')
+    # obsolete 12-05-2018 
+    # gt_scatter = tf.scatter_nd(scatter_ind, gt_array, [batch_size, num_classes, num_bboxes, num_cols] )
+    gt_scatter = tf.scatter_nd(scatter_ind, gt_array, [batch_size, num_classes, num_bboxes, num_cols ])
+
     # print('    scatter_ind shape ', scatter_ind.get_shape())
-    # print(scatter_ind.eval())
     # print('    gt_scatter shape ', gt_scatter.get_shape())
     
     #-------------------------------------------------------------------------------
-    ## sort in each class dimension based on y2 (column 1)
+    ## sort in each class dimension based on on sequence number (last column)
     # scatter_nd places bboxs in a sparse fashion --- this sort is to place all bboxes
     # at the top of the class bbox array
     #-------------------------------------------------------------------------------
 
-    _ , sort_inds = tf.nn.top_k(gt_scatter[:,:,:,1], k=gt_scatter.shape[2])
+    _ , sort_inds = tf.nn.top_k(tf.abs(gt_scatter[:,:,:,-1]), k=gt_scatter.shape[2])
 
     # build indexes to gather rows from pred_scatter based on sort order 
-    class_grid, batch_grid, bbox_grid = tf.meshgrid(tf.range(num_classes),tf.range(batch_size), tf.range(num_detections))
+    class_grid, batch_grid, bbox_grid = tf.meshgrid(tf.range(num_classes),tf.range(batch_size), tf.range(num_bboxes))
     bbox_grid_exp = tf.to_float(tf.expand_dims(bbox_grid, axis = -1))
-
-    # print('    build gathering indexes to use in sorting -------')    
-    # print('    sort inds shape : ', sort_inds.get_shape())
-    # print('    class_grid  shape ', class_grid.get_shape())
-    # print(class_grid.eval())
-    # print('    batch_grid  shape ', batch_grid.get_shape())
-    # print(class_grid.eval())
-    # print('    bbox_grid   shape ', bbox_grid.get_shape() , ' bbox_grid_exp shape ', bbox_grid_exp.get_shape())
-    # print(bbox_grid.eval())
-
+ 
     gather_inds = tf.stack([batch_grid , class_grid, sort_inds],axis = -1)
-    gt_tensor   = tf.gather_nd(gt_scatter, gather_inds, name  = 'gt_tensor')
+    gt_result   = tf.gather_nd(gt_scatter[...,:-1], gather_inds, name  = tensor_name)
+    # gt_result   = gt_result[...,:-1]
     # print('    gather_inds shape      : ', gather_inds.get_shape())
-    # print('    gt_tensor (gathered)   : ', gt_tensor.get_shape())
     
     # append an index to the end of each row --- commented out 30-04-2018
     # gt_tensor   = tf.concat([gt_tensor, bbox_grid_exp], axis = -1)
 
-    # count based on pred score > 0 (changed from index 0 to -1 on 30-04-2018)    
-    gt_cls_cnt  = tf.count_nonzero(gt_tensor[:,:,:,-1],axis = -1, name = 'gt_cls_count')
+    # count based on pred score > 0 (changed from index 0 to -1 on 30-04-2018)   
+    # moved outside to call() 12-05-2018
+    # gt_cls_cnt  = tf.count_nonzero(gt_result[:,:,:,-1],axis = -1, name = 'gt_cls_count')
 
     
-    print('    final gt_tensor shape  : ', gt_tensor.get_shape())
-    print('    final gt_cls_cnt shape : ', gt_cls_cnt.get_shape())
-    print('    complete')
+    print('    ',tensor_name, 'final shape  : ', gt_result.get_shape())
 
-    return  [gt_tensor, gt_cls_cnt] 
+    return  gt_result
 
     
 def build_mask2(input):
@@ -262,14 +242,14 @@ def build_mask2(input):
     print( ' updates shape: ', mask_updates.shape)
     return res
     
-def build_gaussian_tf(in_tensor, config, names = None):
+def build_heatmap(in_tensor, config, names = None):
 
     num_detections  = config.DETECTION_MAX_INSTANCES
     img_h, img_w    = config.IMAGE_SHAPE[:2]
     batch_size      = config.BATCH_SIZE
     num_classes     = config.NUM_CLASSES  
     print('\n ')
-    print('  > BUILD_GAUSSIAN_TF() for ', names )
+    print('  > build_heatmap() for ', names )
     
     # rois per image is determined by size of input tensor 
     #   detection mode:   config.TRAIN_ROIS_PER_IMAGE 
@@ -293,7 +273,7 @@ def build_gaussian_tf(in_tensor, config, names = None):
     # print('    X : \n',X.eval())
     # print('    Y : \n',Y.eval())
 
-    # repeat X and Y  batch_size x rois_per_image times
+    # duplicate (repeat) X and Y into a  batch_size x rois_per_image tensor
     ones = tf.ones([batch_size, rois_per_image,1, 1], dtype = tf.int32)
     rep_X = ones * X
     rep_Y = ones * Y 
@@ -340,13 +320,14 @@ def build_gaussian_tf(in_tensor, config, names = None):
     pt2_dense = tf.gather_nd( in_tensor, pt2_ind)
 
     # append image index to front of rows - REMOVED 1-5-2018
+    # pt2_ind[:,0] is the same informaiton and is used in dynamic_partition
+    
     #  pt2_dense = tf.concat([tf.to_float(pt2_ind[:,0:1]), pt2_dense],axis=1)
     print('    dense shape ',pt2_dense.get_shape())
     # print(dense.eval())
 
     ## split pt2_dense by pt2_ind[:,0], which identifies the image 
     stacked_list = tf.dynamic_partition(pt2_dense, tf.to_int32(pt2_ind[:,0]), num_partitions = batch_size )
-
     
     #-----------------------------------------------------------------------------
     ##  Build Stacked output from dynamically partitioned lists 
@@ -402,9 +383,7 @@ def build_gaussian_tf(in_tensor, config, names = None):
     gauss_grid = tf.where(tf.is_nan(prob_grid),  tf.zeros_like(prob_grid), prob_grid)
 
     
-    #--------------------------------------------------------------------------------
-    ## scatter out the probability distributions based on class
-    #--------------------------------------------------------------------------------
+    ## scatter out the probability distributions based on class --------------------------
     print('\n    Scatter out the probability distributions based on class --------------')     
     class_inds      = tf.to_int32(stacked_tensor[:,:,-2])   # - should be -2 since class moved to that postion
     batch_grid, roi_grid = tf.meshgrid( tf.range(batch_size, dtype=tf.int32), tf.range(rois_per_image, dtype=tf.int32),
@@ -421,27 +400,32 @@ def build_gaussian_tf(in_tensor, config, names = None):
     
     ## sum based on class -----------------------------------------------------------------
     print('\n    Reduce sum based on class ---------------------------------------------')         
-    gauss_sum = tf.reduce_sum(gauss_scatt, axis=2, name='pred_gaussian')
+    gauss_sum = tf.reduce_sum(gauss_scatt, axis=2, name='pred_heatmap')
     gauss_sum = tf.where(gauss_sum > 1e-6, gauss_sum,tf.zeros_like(gauss_sum))
     gauss_sum = tf.transpose(gauss_sum,[0,2,3,1], name = names[0])
     print('    gaussian sum type/name : ', type(gauss_sum), gauss_sum.name, names[0])
     print('    gaussian_sum shape     : ', gauss_sum.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_sum) )    
 
-    # L2 normalization  -----------------------------------------------------------------
-    # print('\n    L2 normalization ------------------------------------------------------')         
-    
-    # gauss_flatten = KB.reshape(gauss_sum, [tf.shape(gauss_sum)[0], -1, tf.shape(gauss_sum)[-1]] )
-    # gauss_norm    = KB.l2_normalize(gauss_flatten, axis = 1)
-    # gauss_norm    = KB.reshape(gauss_norm, KB.shape(gauss_sum))
-    # print('    Shape of guassian_flattened  : ', KB.int_shape(gauss_flatten), 'Keras tensor ', KB.is_keras_tensor(gauss_flatten) )
-    # print('    Shape of L2 normalized tensor: ', KB.int_shape(gauss_norm), 'Keras tensor ', KB.is_keras_tensor(gauss_norm) )
+    ## L2 normalization  -----------------------------------------------------------------
+    print('\n    L2 normalization ------------------------------------------------------')   
+    heatmap_shape=KB.shape(gauss_sum)
+    print(' pred_shape: KB.shape:' , heatmap_shape, ' tf.get_shape(): ', heatmap_shape.get_shape(), ' pred_maks.shape:', 
+                                     gauss_sum.shape, 'tf.shape :', tf.shape(gauss_sum))
+   
+    gauss_flatten = KB.reshape(gauss_sum, (heatmap_shape[0], -1, heatmap_shape[-1]) )
+    output_norm   = KB.l2_normalize(gauss_flatten, axis = 1)    
+    gauss_norm    = KB.identity(KB.reshape(output_norm,  heatmap_shape ) , name = names[0]+'_norm')   
+
+    print('   gauss_flatten    : ', KB.int_shape(gauss_flatten) , gauss_flatten.get_shape(),' Keras tensor ', KB.is_keras_tensor(gauss_flatten) )
+    print('   gauss_norm1      : ', KB.int_shape(output_norm)   , output_norm.get_shape(),' Keras tensor ', KB.is_keras_tensor(output_norm) )
+    print('   gauss_norm final : ', KB.int_shape(gauss_norm)    , gauss_norm.get_shape(),' Keras tensor ', KB.is_keras_tensor(gauss_norm) )
     # print('    complete')
 
-    return  gauss_sum    # [gauss_sum, gauss_scatt, means, covar]
+    return  gauss_sum, gauss_norm    # [gauss_sum, gauss_scatt, means, covar]
     
 
 
-def build_gaussian_pci(in_tensor, config, names = None):
+def build_heatmap_inference(in_tensor, config, names = None):
     '''
     detections :   [N, 100, 6 {y1, x1, y2, x2}]
     '''
@@ -452,7 +436,7 @@ def build_gaussian_pci(in_tensor, config, names = None):
     batch_size      = config.BATCH_SIZE
     num_classes     = config.NUM_CLASSES  
     print('\n')
-    print('  > BUILD_GAUSSIAN_PCI() for ' , names)
+    print('  > BUILD_HEATMAP_INFERENCE() for ' , names)
     
     # rois per image is determined by size of input tensor 
     #   detection mode:   config.TRAIN_ROIS_PER_IMAGE 
@@ -603,33 +587,39 @@ def build_gaussian_pci(in_tensor, config, names = None):
     
     ## sum based on class -----------------------------------------------------------------
     print('\n    Reduce sum based on class ---------------------------------------------')         
-    gauss_sum = tf.reduce_sum(gauss_scatt, axis=2, name='pred_gaussian')
+    gauss_sum = tf.reduce_sum(gauss_scatt, axis=2, name='pred_heatmap')
     gauss_sum = tf.where(gauss_sum > 1e-6, gauss_sum,tf.zeros_like(gauss_sum))
     gauss_sum = tf.transpose(gauss_sum,[0,2,3,1], name = names[0])
     print('    gaussian sum type/name : ', type(gauss_sum), gauss_sum.name, names[0])
     print('    gaussian_sum shape     : ', gauss_sum.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_sum) )    
 
-    # L2 normalization  -----------------------------------------------------------------
-    # print('\n    L2 normalization ------------------------------------------------------')         
-    
-    # gauss_flatten = KB.reshape(gauss_sum, [tf.shape(gauss_sum)[0], -1, tf.shape(gauss_sum)[-1]] )
-    # gauss_norm    = KB.l2_normalize(gauss_flatten, axis = 1)
-    # gauss_norm    = KB.reshape(gauss_norm, KB.shape(gauss_sum))
-    # print('    Shape of guassian_flattened  : ', KB.int_shape(gauss_flatten), 'Keras tensor ', KB.is_keras_tensor(gauss_flatten) )
-    # print('    Shape of L2 normalized tensor: ', KB.int_shape(gauss_norm), 'Keras tensor ', KB.is_keras_tensor(gauss_norm) )
-    # print('    complete')
+    ## L2 normalization  -----------------------------------------------------------------
+    print('\n    L2 normalization ------------------------------------------------------')   
+    heatmap_shape=KB.shape(gauss_sum)
+    print(' pred_shape: KB.shape:' , heatmap_shape, ' tf.get_shape(): ', heatmap_shape.get_shape(), ' pred_maks.shape:', 
+                                     gauss_sum.shape, 'tf.shape :', tf.shape(gauss_sum))
+   
+    gauss_flatten = KB.reshape(gauss_sum, (heatmap_shape[0], -1, heatmap_shape[-1]) )
+    output_norm   = KB.l2_normalize(gauss_flatten, axis = 1)    
+    gauss_norm    = KB.identity(KB.reshape(output_norm,  heatmap_shape ) , name = names[0]+'_norm')   
 
-    return  gauss_sum    # [gauss_sum, gauss_scatt, means, covar]
-    
+    print('   gauss_flatten    : ', KB.int_shape(gauss_flatten) , gauss_flatten.get_shape(),' Keras tensor ', KB.is_keras_tensor(gauss_flatten) )
+    print('   gauss_norm1      : ', KB.int_shape(output_norm)   , output_norm.get_shape(),' Keras tensor ', KB.is_keras_tensor(output_norm) )
+    print('   gauss_norm final : ', KB.int_shape(gauss_norm)    , gauss_norm.get_shape(),' Keras tensor ', KB.is_keras_tensor(gauss_norm) )
+    print('    complete')
+
+    return  gauss_sum, gauss_norm    # [gauss_sum, gauss_scatt, means, covar]
+
      
-class PCNLayerTF(KE.Layer):
+class CHMLayer(KE.Layer):
     '''
+    Contextual Heatmap Layer  (previously CHMLayerTF)
     Receives the bboxes, their repsective classification and roi_outputs and 
     builds the per_class tensor
 
     Returns:
     -------
-    The PCN layer returns the following tensors:
+    The CHM layer returns the following tensors:
 
     pred_tensor :       [batch, NUM_CLASSES, TRAIN_ROIS_PER_IMAGE    , (index, class_prob, y1, x1, y2, x2, class_id, old_idx)]
                                 in normalized coordinates   
@@ -643,57 +633,70 @@ class PCNLayerTF(KE.Layer):
 
     def __init__(self, config=None, **kwargs):
         super().__init__(**kwargs)
-        print('\n>>> PCN Layer TF ')
+        print('\n>>> CHM Layer  ')
         self.config = config
 
         
     def call(self, inputs):
         
-        print('   > PCNLayerTF Call() ', len(inputs))
-        mrcnn_class , mrcnn_bbox,  output_rois, gt_class_ids, gt_bboxes = inputs
-        print('     mrcnn_class.shape    :',   mrcnn_class.shape, KB.int_shape( mrcnn_class ))
-        print('     mrcnn_bbox.shape     :',    mrcnn_bbox.shape, KB.int_shape(  mrcnn_bbox )) 
-        print('     output_rois.shape    :',   output_rois.shape, KB.int_shape( output_rois )) 
-        print('     gt_class_ids.shape   :',  gt_class_ids.shape, KB.int_shape(gt_class_ids ))  
-        print('     gt_bboxes.shape      :',     gt_bboxes.shape, KB.int_shape(   gt_bboxes )) 
+        print('   > CHMLayer Call() ', len(inputs))
+        mrcnn_class , mrcnn_bbox,  output_rois, gt_class_ids, gt_bboxes, tgt_class_ids, tgt_deltas = inputs
+        print('     mrcnn_class.shape    :',   mrcnn_class.shape, KB.int_shape(  mrcnn_class ))
+        print('     mrcnn_bbox.shape     :',    mrcnn_bbox.shape, KB.int_shape(   mrcnn_bbox )) 
+        print('     output_rois.shape    :',   output_rois.shape, KB.int_shape(  output_rois )) 
+        print('     gt_class_ids.shape   :',  gt_class_ids.shape, KB.int_shape( gt_class_ids ))  
+        print('     gt_bboxes.shape      :',     gt_bboxes.shape, KB.int_shape(    gt_bboxes )) 
+        print('     tgt_class_ids.shape  :', tgt_class_ids.shape, KB.int_shape(tgt_class_ids )) 
+        print('     tgt_deltas.shape     :',    tgt_deltas.shape, KB.int_shape(   tgt_deltas )) 
 
-        pred_tensor , _  = build_predictions_tf(mrcnn_class, mrcnn_bbox, output_rois, self.config)
-        gt_tensor   , _  = build_ground_truth_tf(gt_class_ids, gt_bboxes, self.config)  
+        pred_tensor  = build_predictions_tf(mrcnn_class, mrcnn_bbox, output_rois, self.config)
+        pred_cls_cnt = KL.Lambda(lambda x: tf.count_nonzero(x[:,:,:,-1],axis = -1), name = 'pred_cls_count')(pred_tensor)        
+                     
+        gt_tensor    = build_ground_truth_tf (gt_class_ids,  gt_bboxes, self.config.DETECTION_MAX_INSTANCES,self.config)  
+        gt_cls_cnt   = KL.Lambda(lambda x: tf.count_nonzero(x[:,:,:,-1],axis = -1), name = 'gt_cls_count')(gt_tensor)
+                     
+        gt_deltas    = build_ground_truth_tf(tgt_class_ids, tgt_deltas, self.config.TRAIN_ROIS_PER_IMAGE   ,self.config)  
 
         # print('     pred_tensor : ', pred_tensor.shape, '  pred_cls_cnt: ', pred_cls_cnt.shape)
         # print('     gt_tensor  : ', gt_tensor.shape   , '  gt_cls_cnt  : ', gt_cls_cnt.shape)
         # print(' Build Gaussian np for detected rois =========================')    
-        # pred_scatter, pred_gaussian, pred_means, pred_covar  = build_gaussian_tf(pred_tensor, pred_cls_cnt, self.config)
+        # pred_scatter, pred_heatmap, pred_means, pred_covar  = build_heatmap(pred_tensor, pred_cls_cnt, self.config)
+        print('    pred_cls_cnt shape : ', pred_cls_cnt.shape  ,'Keras tensor ', KB.is_keras_tensor(pred_cls_cnt) )
+        print('    gt_cls_cnt shape : ', gt_cls_cnt.shape  ,'Keras tensor ', KB.is_keras_tensor(gt_cls_cnt) )
 
-        pred_gaussian   = build_gaussian_tf(pred_tensor, self.config, names = ['pred_gaussian'])
-        gt_gaussian     = build_gaussian_tf(gt_tensor  , self.config, names = ['gt_gaussian'])
+        pred_heatmap, pred_heatmap_norm   = build_heatmap(pred_tensor, self.config, names = ['pred_heatmap'])
+        gt_heatmap  , gt_heatmap_norm     = build_heatmap(gt_tensor  , self.config, names = ['gt_heatmap'])
             
-        print('\n    Output build_gaussian_tf ')
-        print('     pred_gaussian : ', pred_gaussian.shape, 'Keras tensor ', KB.is_keras_tensor(pred_gaussian) )
-        print('     gt_gaussian   : ', gt_gaussian.shape, 'Keras tensor ', KB.is_keras_tensor(gt_gaussian) )
+        print('\n    Output build_heatmap ')
+        print('     pred_heatmap     : ', pred_heatmap.shape, 'Keras tensor ', KB.is_keras_tensor(pred_heatmap) )
+        print('     gt_heatmap       : ', gt_heatmap.shape  , 'Keras tensor ', KB.is_keras_tensor(gt_heatmap) )
+        print('     complete')
         
-        return [ pred_gaussian , gt_gaussian , pred_tensor, gt_tensor]
+        return [ pred_heatmap , gt_heatmap , pred_heatmap_norm , gt_heatmap_norm , pred_tensor, gt_tensor, gt_deltas]
 
         
     def compute_output_shape(self, input_shape):
         # may need to change dimensions of first return from IMAGE_SHAPE to MAX_DIM
         return [
-                 (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # pred_gaussian
-              ,  (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # gt_gaussian
+                 (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # pred_heatmap
+              ,  (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # gt_heatmap
+              ,  (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # pred_heatmap
+              ,  (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # gt_heatmap
               ,  (None, self.config.NUM_CLASSES, self.config.TRAIN_ROIS_PER_IMAGE   , 6)                    # pred_tensors 
               ,  (None, self.config.NUM_CLASSES, self.config.DETECTION_MAX_INSTANCES, 6)                    # gt_tensor 
-
+              ,  (None, self.config.NUM_CLASSES, self.config.TRAIN_ROIS_PER_IMAGE   , 6)                    # gt_deltas 
               ]
 
         
-class PCILayerTF(KE.Layer):
+class CHMLayerInference(KE.Layer):
     '''
+    Contextual Heatmap Layer  - Inference mode (previously PCILayerTF)    
     Receives the bboxes, their repsective classification and roi_outputs and 
     builds the per_class tensor
 
     Returns:
     -------
-    The PCN layer returns the following tensors:
+    The CHM Inference layer returns the following tensors:
 
     pred_tensor :       [batch, NUM_CLASSES, TRAIN_ROIS_PER_IMAGE    , (index, class_prob, y1, x1, y2, x2, class_id, old_idx)]
                                 in normalized coordinates   
@@ -707,7 +710,7 @@ class PCILayerTF(KE.Layer):
 
     def __init__(self, config=None, **kwargs):
         super().__init__(**kwargs)
-        print('\n>>> PCN Layer TF ')
+        print('\n>>> CHM Layer TF ')
         self.config = config
 
         
@@ -720,19 +723,19 @@ class PCILayerTF(KE.Layer):
         print('     detections.shape     :',  KB.int_shape(detections)) 
 
         pred_tensor , _  = build_predictions_tf(mrcnn_class, mrcnn_bbox, output_rois, self.config)
-        pred_detections  = build_gaussian_pci(detections, self.config, names = ['detections'])
+        pred_heatmap  = build_heatmap_inference(detections, self.config, names = ['detections'])
             
-        print('\n    Output build_gaussian_tf ')
-        print('     pred_detections: ', pred_detections.shape, 'Keras tensor ', KB.is_keras_tensor(pred_detections) )
+        print('\n    Output build_heatmap ')
+        print('     pred_heatmap: ', pred_heatmap.shape, 'Keras tensor ', KB.is_keras_tensor(pred_heatmap) )
 
-        return pred_detections
+        return pred_heatmap
         
 
         
     def compute_output_shape(self, input_shape):
         # may need to change dimensions of first return from IMAGE_SHAPE to MAX_DIM
         return [
-                (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # pred_gaussian
+                (None, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1], self.config.NUM_CLASSES)     # pred_heatmap
                ]
 
           
@@ -755,7 +758,7 @@ class PCILayerTF(KE.Layer):
           # ,  (None, self.config.NUM_CLASSES, self.config.TRAIN_ROIS_PER_IMAGE, 8)                       # pred_tensors 
           # ,  (None, self.config.NUM_CLASSES)                                                            # pred_cls_cnt
 
-          #	,  (None, self.config.NUM_CLASSES, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1])     # gt_gaussian
+          #	,  (None, self.config.NUM_CLASSES, self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1])     # gt_heatmap
           # ,  (None, self.config.NUM_CLASSES, self.config.DETECTION_MAX_INSTANCES, \
                                             # self.config.IMAGE_SHAPE[0],self.config.IMAGE_SHAPE[1])    # gt_scatter
           # ,  (None, self.config.NUM_CLASSES, self.config.DETECTION_MAX_INSTANCES, 2)                  # gt_means

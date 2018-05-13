@@ -306,6 +306,8 @@ def compute_overlaps(boxes1, boxes2):
 
 def non_max_suppression(boxes, scores, threshold):
     '''
+    Identify bboxes with an IoU > Threshold for suppression
+    
     Performs non-maximum supression and returns indicies of kept boxes.
     boxes: [N, (y1, x1, y2, x2)]. Notice that (y2, x2) lays outside the box.
     scores: 1-D array of box scores.
