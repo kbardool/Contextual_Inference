@@ -131,7 +131,6 @@ class MaskRCNN():
         
 
         self.keras_model = self.build(mode=mode, config=config)
-        # self.keras_model = self.build_new(mode=mode, config=config)
 
         print('>>> MaskRCNN initialization complete')
 

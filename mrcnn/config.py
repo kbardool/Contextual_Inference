@@ -67,6 +67,9 @@ class Config(object):
     # If 2, then anchors are created for every other cell, and so on.
     RPN_ANCHOR_STRIDE = 1
 
+    # Min area a RoI proposal must be larger than (in pixels)
+    ROI_PROPOSAL_AREA_THRESHOLD = 0
+    
     # Non-max suppression threshold to filter RPN proposals.
     # You can reduce this during training to generate more propsals.
     RPN_NMS_THRESHOLD = 0.7

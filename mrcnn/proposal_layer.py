@@ -77,11 +77,11 @@ def apply_box_deltas_graph(boxes, deltas):
 
 
 def clip_boxes_graph(boxes, window):
-    """
+    '''
     clip refined anchor boxes such that they remain within the dimensions of the image 
     boxes:  [N, 4] each row is y1, x1, y2, x2
     window: [4] in the form y1, x1, y2, x2
-    """
+    '''
     # Split corners
     wy1, wx1, wy2, wx2 = tf.split(window, 4)
     y1 , x1 , y2 , x2  = tf.split(boxes, 4, axis=1)
@@ -94,6 +94,29 @@ def clip_boxes_graph(boxes, window):
     clipped = tf.concat([y1, x1, y2, x2], axis=1, name="clipped_boxes")
     return clipped
 
+def suppress_small_boxes_graph(boxes, scores, min_area_threshold ):
+    '''
+    suppress boxes and  with area less than area_threshold
+    suppress corresponding scores as well
+    add necessary padding to maintain same shape as input
+    
+    boxes:  [N, 4] each row is y1, x1, y2, x2
+    scores  [N]
+    '''
+    bx_area = (boxes[...,2]-boxes[...,0])*(boxes[...,3]-boxes[...,1])
+    selected_idxs   = tf.where(tf.greater(bx_area , min_area_threshold))
+    selected_boxes  = tf.gather_nd(boxes, selected_idxs)
+    selected_scores = tf.gather_nd(scores, selected_idxs)
+    padding   = tf.maximum(tf.shape(boxes)[0] - tf.shape(selected_boxes)[0], 0)
+
+#     print(' box area       : ', bx_area.shape)    
+#     print(' selected_idxs  : ', tf.shape(selected_idxs).eval())
+#     print(' selected scores: ', tf.shape(selected_scores).eval())
+#     print(' Req padding    : ', padding.eval())
+    
+    selected_boxes  = tf.pad(selected_boxes, [(0, padding), (0, 0)])    
+    selected_scores = tf.pad(selected_scores, [(0, padding)])    
+    return selected_boxes, selected_scores    
 
 class ProposalLayer(KE.Layer):
     """
@@ -118,10 +141,10 @@ class ProposalLayer(KE.Layer):
         super().__init__(**kwargs)
         print('\n>>> Proposal Layer - generate ',proposal_count, ' proposals' )
 
-        self.config = config
+        self.config         = config
         self.proposal_count = proposal_count
-        self.nms_threshold = nms_threshold
-        self.anchors = anchors.astype(np.float32)
+        self.nms_threshold  = nms_threshold
+        self.anchors        = anchors.astype(np.float32)
         print('    Init complete. Size of anchors: ',self.anchors.shape)
         
 
@@ -150,17 +173,19 @@ class ProposalLayer(KE.Layer):
         # and doing the rest on the smaller subset.
         pre_nms_limit = min(6000, self.anchors.shape[0])
         
-        # return the indicies for the top "pre_nms_limit"  rpn_class scores  
-        ix = tf.nn.top_k(scores, pre_nms_limit, sorted=True,name="top_anchors").indices
-        
-        # pass scores and the selected indicies(ix) 
+        #------------------------------------------------------------------------------------------
+        ## return the indicies for the top "pre_nms_limit"  rpn_class scores  
+        ## gather scores, deltas, and anchors using the selected indicies(ix) 
+        #------------------------------------------------------------------------------------------
+        ix      = tf.nn.top_k(scores, pre_nms_limit, sorted=True,name="top_anchors").indices
         scores  = utils.batch_slice([scores, ix], lambda x, y: tf.gather(x, y), self.config.IMAGES_PER_GPU)
         deltas  = utils.batch_slice([deltas, ix], lambda x, y: tf.gather(x, y), self.config.IMAGES_PER_GPU)
         anchors = utils.batch_slice(         ix , lambda x   : tf.gather(anchors, x), self.config.IMAGES_PER_GPU, 
                                   names=["pre_nms_anchors"])
-        # Apply deltas to anchors to get refined anchors.
-        # [batch, N, (y1, x1, y2, x2)]
-        
+
+        #------------------------------------------------------------------------------------------
+        ## Apply deltas to anchors to get refined anchors : [batch, N, (y1, x1, y2, x2)]
+        #------------------------------------------------------------------------------------------
         boxes = utils.batch_slice([anchors, deltas],
                                   lambda x, y: apply_box_deltas_graph(x, y),self.config.IMAGES_PER_GPU,
                                   names=["refined_anchors"])
@@ -168,44 +193,68 @@ class ProposalLayer(KE.Layer):
         print('     Scores : ' , scores.shape)
         print('     Deltas : ' , deltas.shape)
         print('     Anchors: ' , anchors.shape)
-        print('     Boxes shape / type after processing: ', boxes.shape, type(boxes))
+        print('     Boxes shape / type after processing: ')
 
-        # Clip to image boundaries. [batch, N, (y1, x1, y2, x2)]
+        #------------------------------------------------------------------------------------------
+        ## Clip to image boundaries. [batch, N, (y1, x1, y2, x2)]
+        #------------------------------------------------------------------------------------------
         height, width = self.config.IMAGE_SHAPE[:2]
         window = np.array([0, 0, height, width]).astype(np.float32)
-        
         boxes  = utils.batch_slice(boxes, 
-                                   lambda x: clip_boxes_graph(x, window), self.config.IMAGES_PER_GPU,
+                                   lambda x: clip_boxes_graph(x, window),
+                                   self.config.IMAGES_PER_GPU,
                                    names=["refined_anchors_clipped"])
 
-        #-------------------------------------------------------------------------
+        #------------------------------------------------------------------------------------------
+        ## Suppress proposal boxes (and  corresponding score) if the area is less than ROI_AREA_THRESHOLD
         # Filter out small boxes :
-        # According to Xinlei Chen's paper, this reduces detection accuracy
-        # for small objects, so we're skipping it.
-        #-------------------------------------------------------------------------
+        #   According to Xinlei Chen's paper, this reduces detection accuracy
+        #   for small objects, so we're skipping it.
+        # 16-05-2018 : added this back as it was causing issues for heatmap score calculation
+        #------------------------------------------------------------------------------------------
+        boxes, scores = utils.batch_slice([boxes,scores], 
+                                lambda x, y: suppress_small_boxes_graph(x, y, self.config.ROI_PROPOSAL_AREA_THRESHOLD),
+                                self.config.IMAGES_PER_GPU,
+                                names=["boxes", "scores"])  
+
+        # print('     Boxes (After suppression of small proposal boxes) :', tf.shape(mod_boxes).eval())
+        # print('     Score (After suppression of small proposal boxes) :', tf.shape(mod_scores).eval())       
         
-        # Normalize dimensions to range of 0 to 1.
+        #------------------------------------------------------------------------------------------
+        ## Normalize dimensions to range of 0 to 1.
+        #------------------------------------------------------------------------------------------
         normalized_boxes = boxes / np.array([[height, width, height, width]])
 
-        #-------------------------------------------------------------------------
-        # Define Non-max suppression operation
+        #------------------------------------------------------------------------------------------
+        ## Non-max suppression operation
         #
         #  tf.image.non_max_suppression:
         #
         #  Prunes away boxes that have high intersection-over-union (IOU) overlap
         #  with previously selected boxes.
-        #  Bounding boxes (normalized_boxes) are supplied as [y1, x1, y2, x2], where
-        #  (y1, x1) and (y2, x2) are the coordinates of any diagonal pair of box corners
-        #  and the coordinates can be provided as normalized (i.e., lying in the interval
-        #  [0, 1]) or absolute. 
+        #  Bounding boxes (normalized_boxes) are supplied as [y1, x1, y2, x2], where (y1, x1) and 
+        #  (y2, x2) are the coordinates of any diagonal pair of box corners, and the coordinates 
+        #  can be provided as normalized (i.e., lying in the interval [0, 1]) or absolute. 
         # 
         #  The output of this operation is a set of integers indexing into the input
         #  collection of bounding boxes representing the selected boxes. The bounding box 
         #  coordinates corresponding to the selected indices can then be obtained using 
-        #  the tf.gather operation. 
+        #  the tf.gather operation.
+        #
         #  For example: 
         #  selected_indices = tf..non_max_suppression( boxes, scores, max_output_size, iou_threshold) 
         #  selected_boxes   = tf.gather(boxes, selected_indices)
+        #
+        #  These selected boxes are RPN_PROPOSAL_ROIS, which are passed on to further layers, namely, 
+        #  DETECTION_TARGET_LAYER and DETECTION_INFERENCE_LAYER
+        #
+        #  hyperparameters:
+        #  ---------------
+        #       proposal_count: if mode == "training":
+        #                           config.POST_NMS_ROIS_TRAINING     1000
+        #                        else
+        #                           config.POST_NMS_ROIS_INFERENCE    2000
+        #       nms_threshold : config.RPN_NMS_THRESHOLD              0.7
         #-------------------------------------------------------------------------
         def nms(normalized_boxes, scores):
             indices = tf.image.non_max_suppression(normalized_boxes, 

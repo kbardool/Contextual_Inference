@@ -31,7 +31,7 @@ import mrcnn.utils as utils
 #  Detection Target Layer
 ############################################################
 
-def overlaps_graph2(boxes1, boxes2):
+def overlaps_graph_mod(boxes1, boxes2):
     '''
     Computes IoU overlaps between two sets of boxes.in normalized coordinates
     
@@ -88,7 +88,7 @@ def overlaps_graph2(boxes1, boxes2):
     return overlaps
 
 
-def detection_targets_graph2(proposals, gt_class_ids, gt_boxes,  config):
+def detection_targets_graph_mod(proposals, gt_class_ids, gt_boxes,  config):
     '''
     Generates detection targets for one image. Subsamples proposals and
     generates target class IDs, bounding box deltas, and masks for each.
@@ -156,6 +156,9 @@ def detection_targets_graph2(proposals, gt_class_ids, gt_boxes,  config):
     #            dimensions, you can remove specific size 1 dimensions by specifying axis.
     #------------------------------------------------------------------------------------------
     
+    #------------------------------------------------------------------------------------------
+    ##  Separate GT boxes and masks by 'crowd' and 'non-crowd' classifications
+    #------------------------------------------------------------------------------------------
     crowd_ix        = tf.where(gt_class_ids < 0)[:, 0]
     non_crowd_ix    = tf.where(gt_class_ids > 0)[:, 0]
     crowd_boxes     = tf.gather(gt_boxes, crowd_ix)
@@ -165,27 +168,35 @@ def detection_targets_graph2(proposals, gt_class_ids, gt_boxes,  config):
     # gt_masks        = tf.gather(gt_masks, non_crowd_ix, axis=2)
 
 
+    #------------------------------------------------------------------------------------------
     # Compute overlaps with crowd boxes [anchors, crowds]
-    crowd_overlaps  = overlaps_graph2(proposals, crowd_boxes)
+    #------------------------------------------------------------------------------------------
+    crowd_overlaps  = overlaps_graph_mod(proposals, crowd_boxes)
     crowd_iou_max   = tf.reduce_max(crowd_overlaps, axis=1)
     no_crowd_bool   = (crowd_iou_max < 0.001)
 
 
+    #------------------------------------------------------------------------------------------
     # Compute overlaps matrix [proposals, gt_boxes] - The IoU between 
     # proposals and gt_boxes (non-crowd gt boxes, designated by classId < 0 in Coco)
     # overlaps is 
     # compute max of elements across axis 1 of overlaps tensor. 
-    overlaps        = overlaps_graph2(proposals, gt_boxes)
+    #------------------------------------------------------------------------------------------
+    overlaps        = overlaps_graph_mod(proposals, gt_boxes)
     roi_iou_max     = tf.reduce_max(overlaps, axis=1)
     # print('     overlaps.shape        :',  overlaps.shape, KB.int_shape(overlaps)   )
 
+    #------------------------------------------------------------------------------------------
     ## 1. Determine indices of postive ROI propsal boxes
+    #------------------------------------------------------------------------------------------
     #    Identify ROI proposal boxes that have an IoU >= 05 overlap with some gt_box, and store 
     #    indices into positive_indices
     positive_roi_bool     = (roi_iou_max >= 0.5)
     positive_indices      = tf.where(positive_roi_bool)[:, 0]
 
+    #------------------------------------------------------------------------------------------
     ## 2. Determine indices of negative ROI proposal boxes
+    #------------------------------------------------------------------------------------------
     #    those with < 0.5 with every GT box and are not crowds bboxes 
     # the where creates a array with shape [# of answers, 1] so we use [:, 0] after
     ## current method
@@ -199,24 +210,32 @@ def detection_targets_graph2(proposals, gt_class_ids, gt_boxes,  config):
     # negative_nonzero_bool = tf.logical_and(negative_nonzero_bool, no_crowd_bool)
     # negative_indices2     = tf.where(negative_nonzero_bool) [:, 0]
 
+    #------------------------------------------------------------------------------------------
     ## 3. Subsample positive ROIs based on ROI_POSITIVE_RATIO
+    #------------------------------------------------------------------------------------------
     #    Aim for 33% positive (config.ROI_POSITIVE_RATIO = 0.33)
     #    Positive ROIs   33% of config.TRAIN_ROIS_PER_IMAGE ~  11
     positive_count        = int(config.TRAIN_ROIS_PER_IMAGE * config.ROI_POSITIVE_RATIO)
     positive_indices      = tf.random_shuffle(positive_indices)[:positive_count]
     positive_count        = tf.shape(positive_indices)[0]
     
+    #------------------------------------------------------------------------------------------
     ## 4. Add Negative ROIs. Add enough to maintain positive:negative ratio
+    #------------------------------------------------------------------------------------------
     #     negative_count = int((positive_count / config.ROI_POSITIVE_RATIO) - positive_count)
     r = 1.0 / config.ROI_POSITIVE_RATIO
     negative_count        = tf.cast(r * tf.cast(positive_count, tf.float32), tf.int32) - positive_count
     negative_indices      = tf.random_shuffle(negative_indices)[:negative_count]
     
+    #------------------------------------------------------------------------------------------
     ## 5.   Gather selected positive and negative ROIs
+    #------------------------------------------------------------------------------------------
     positive_rois         = tf.gather(proposals, positive_indices)
     negative_rois         = tf.gather(proposals, negative_indices)
 
+    #------------------------------------------------------------------------------------------
     ## 6.   Assign positive ROIs to GT boxes.
+    #------------------------------------------------------------------------------------------
     #      roi_gt_box_assignment shows for each positive overlap, which class has the maximum overlap
     positive_overlaps     = tf.gather(overlaps, positive_indices)
     roi_gt_box_assignment = tf.argmax(positive_overlaps, axis=1)
@@ -224,12 +243,16 @@ def detection_targets_graph2(proposals, gt_class_ids, gt_boxes,  config):
     roi_gt_class_ids      = tf.gather(gt_class_ids, roi_gt_box_assignment)
     # print('     shape of positive overlaps is :', positive_overlaps.get_shape())
 
+    #------------------------------------------------------------------------------------------
     ## 7.   Compute bbox delta 
+    #------------------------------------------------------------------------------------------
     # calculate refinement (difference b/w positive rois and gt_boxes) for positive ROIs
     roi_gt_deltas  = utils.box_refinement_graph(positive_rois, roi_gt_boxes)
     roi_gt_deltas /= config.BBOX_STD_DEV
 
+    #------------------------------------------------------------------------------------------
     ## 8.  prepare gt_masks 
+    #------------------------------------------------------------------------------------------
     #      transpose gt_masks from [h, w, N] to [N, height, width] and add 4th dim at end [N, height, width, 1]
     #      Pick the right mask for each ROI
     # transposed_masks = tf.expand_dims(tf.transpose(gt_masks, [2, 0, 1]), -1)
@@ -264,8 +287,11 @@ def detection_targets_graph2(proposals, gt_class_ids, gt_boxes,  config):
     # binary cross entropy loss.
     # masks = tf.round(masks)
 
+    #------------------------------------------------------------------------------------------
+    ## 9. Prepare final outputs
     # Append negative ROIs and pad bbox roi_gt_deltas and masks that
     # are not used for negative ROIs with zeros.
+    #------------------------------------------------------------------------------------------
     rois             = tf.concat([positive_rois, negative_rois], axis=0)
     N                = tf.shape(negative_rois)[0]
     P                = tf.maximum(config.TRAIN_ROIS_PER_IMAGE - tf.shape(rois)[0], 0)
@@ -344,7 +370,7 @@ class DetectionTargetLayer_mod(KE.Layer):
         names = ["output_rois", "target_class_ids", "target_bbox_deltas", "roi_gt_boxes"]
         
         outputs = utils.batch_slice([proposals, gt_class_ids, gt_boxes],             # inputs 
-                                    lambda w, x, y: detection_targets_graph2(w, x, y, self.config),        # batch function 
+                                    lambda w, x, y: detection_targets_graph_mod(w, x, y, self.config),        # batch function 
                                     self.config.IMAGES_PER_GPU,                                                 # batch_size, name
                                     names=names)                  
                    

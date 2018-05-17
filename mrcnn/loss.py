@@ -65,7 +65,7 @@ def rpn_class_loss_graph(rpn_match, rpn_class_logits):
                                              from_logits=True)
     
     loss = KB.switch(tf.size(loss) > 0, KB.mean(loss), tf.constant(0.0))
-    loss = KB.reshape(loss, [1, 1])    
+    loss = tf.reshape(loss, [1, 1], name = 'rpn_class_loss')    
     return loss
 
 ##-----------------------------------------------------------------------
@@ -156,7 +156,7 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
                     smooth_l1_loss(y_true=target_bbox, y_pred=rpn_bbox),
                     tf.constant(0.0))
     loss = KB.mean(loss)
-    loss = KB.reshape(loss, [1, 1])
+    loss = tf.reshape(loss, [1, 1], name = 'rpn_bbox_loss')
     return loss
 
 ##-----------------------------------------------------------------------
@@ -199,7 +199,7 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits, active_class_ids
     # Computer loss mean. Use only predictions that contribute
     # to the loss to get a correct mean.
     loss = tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
-    loss = KB.reshape(loss, [1, 1])
+    loss = tf.reshape(loss, [1, 1], name = 'mrcnn_class_loss')
     return loss
 
 ##-----------------------------------------------------------------------
@@ -242,7 +242,7 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
                     smooth_l1_loss(y_true=target_bbox, y_pred=pred_bbox),
                     tf.constant(0.0))
     loss        = KB.mean(loss)
-    loss        = KB.reshape(loss, [1, 1])
+    loss        = tf.reshape(loss, [1, 1], name = 'mrcnn_bbox_loss')
     return loss
 
 ##-----------------------------------------------------------------------
@@ -298,7 +298,7 @@ def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
                     KB.binary_crossentropy(target=y_true, output=y_pred),
                     tf.constant(0.0))
     loss = KB.mean(loss)
-    loss = KB.reshape(loss, [1, 1])
+    loss = tf.reshape(loss, [1, 1], name = 'mrcnn_mask_loss')
     print('     final loss shape:', loss.get_shape(), type(loss), KB.is_keras_tensor(loss))
     return loss
 
@@ -351,7 +351,7 @@ def fcn_bbox_loss_graph(target_bbox_deltas, target_class_ids, fcn_bbox_deltas):
                     smooth_l1_loss(y_true=y_true, y_pred=y_pred),
                     tf.constant(0.0))
     loss        = KB.mean(loss)
-    loss        = KB.reshape(loss, [1, 1])
+    loss        = tf.reshape(loss, [1, 1], name = 'fcn_bbox_loss')
     return loss
 
     
@@ -393,7 +393,7 @@ def fcn_loss_graph(target_masks, pred_masks):
                     KB.constant(0.0))
     print('    loss is keras tensor:', KB.is_keras_tensor(loss))                    
     loss        = KB.mean(loss)
-    loss        = KB.reshape(loss, [1, 1])
+    loss        = tf.reshape(loss, [1, 1], name = 'fcn_loss')
     print('    loss type is :', type(loss))
     return loss
  
@@ -455,7 +455,7 @@ def fcn_norm_loss_graph(target_masks, pred_heatmap):
                     smooth_l1_loss(y_true=target_masks1, y_pred=pred_heatmap1),
                     tf.constant(0.0))
     loss        = KB.mean(loss)
-    loss        = KB.reshape(loss, [1, 1])
+    loss        = tf.reshape(loss, [1, 1], name = 'fcn_normalized_loss')
     print('    loss type is :', type(loss))
     return loss
      

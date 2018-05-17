@@ -38,24 +38,29 @@ pp = pprint.PrettyPrinter(indent=2, width=100)
     # return output
     
     
-def get_layer_output_1(model, model_input, output_layer, training_flag = True, verbose = True):
+def get_layer_output_1(model, model_input, requested_layers, training_flag = True, verbose = True):
     _my_input = model_input + [training_flag]
     if verbose: 
         print('/* Inputs */')
         for i, (input_layer,input) in enumerate(zip(model.input, model_input)):
             print('Input {:2d}:  ({:40s}) \t  Input shape: {}'.format(i, input_layer.name, input.shape))
             
-    model_outputs = [model.outputs[x] for x in output_layer]
+    requested_layers_list = [model.outputs[x] for x in requested_layers]
     
-    _mrcnn_class = KB.function(model.input, model_outputs)   
-    output = _mrcnn_class(model_input)                    
+    _mrcnn_class = KB.function(model.input, requested_layers_list)   
+    results = _mrcnn_class(model_input)                    
     
     if verbose:
         print('\n/* Outputs */')    
-        for i, output_layer, output in zip (output_layer, model_outputs , output):
-            print('Output {:2d}: ({:40s}) \t  Output shape: {}'.format(i, output_layer.name, output.shape))
+        for line, (i, output_layer, output) in  enumerate(zip (requested_layers, requested_layers_list , results)):
+            print('Output idx: {:2d}    Layer: {:2d}: ({:40s}) \t  Output shape: {}'.format(line, i, output_layer.name, output.shape))
+        print('\nNumber of layers generated: ', len(results), '\n')
 
-    return output
+        for line, (i, output_layer, output) in  enumerate(zip (requested_layers, requested_layers_list , results)):
+            m = re.fullmatch(r"^.*/(.*):.*$", output_layer.name )
+            varname  = m.group(1) if m else "<varname>"
+            print('{:25s} = model_output[{:d}]          # layer: {:2d}   shape: {}' .format(varname, line, i, output.shape ))
+    return results
 
     
     

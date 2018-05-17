@@ -22,7 +22,7 @@ import keras
 import keras.backend as KB
 sys.path.append('../')
 
-import mrcnn.model     as modellib
+import mrcnn.model_mod as modellib
 import mrcnn.visualize as visualize
 import mrcnn.shapes    as shapes
 from mrcnn.config      import Config
@@ -150,8 +150,8 @@ COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
 ## Build configuration object 
 ##------------------------------------------------------------------------------------
 config = shapes.ShapesConfig()
-config.BATCH_SIZE      = 2                  # Batch size is 2 (# GPUs * images/GPU).
-config.IMAGES_PER_GPU  = 2                  # Must match BATCH_SIZE
+config.BATCH_SIZE      = 5                  # Batch size is 2 (# GPUs * images/GPU).
+config.IMAGES_PER_GPU  = 5                  # Must match BATCH_SIZE
 config.STEPS_PER_EPOCH = int(args.steps_in_epoch)
 config.LEARNING_RATE   = float(args.lr)
 
@@ -167,12 +167,12 @@ config.display()
 # Training dataset
 # generate 500 shapes 
 dataset_train = shapes.ShapesDataset()
-dataset_train.load_shapes(500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+dataset_train.load_shapes(2000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
 dataset_train.prepare()
 
 # Validation dataset
 dataset_val = shapes.ShapesDataset()
-dataset_val.load_shapes(50, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+dataset_val.load_shapes(500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
 dataset_val.prepare()
 
 ##------------------------------------------------------------------------------------    

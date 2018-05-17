@@ -43,6 +43,9 @@ from   mrcnn.batchnorm_layer import BatchNorm
     
 ###############################################################
 # Fully Convolutional Network Layer 
+# modification with additional conv layers to generate mrcnn-style
+# class scores and bounding box deltas
+# 16-05-2015 - abandoned after discussion with Jose
 ###############################################################
 
 # def fcn_layer(context_tensor, num_classes,weight_decay=0., batch_momentum=0.9):

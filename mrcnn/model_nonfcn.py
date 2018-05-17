@@ -43,6 +43,7 @@ from   mrcnn.resnet_model     import resnet_graph
 from   mrcnn.chm_layer        import CHMLayer, CHMLayerInference
 from   mrcnn.proposal_layer   import ProposalLayer
 
+# from   mrcnn.fcn_layer        import fcn_graph 
 from   mrcnn.fcn_layer        import fcn_graph
 # from   mrcnn.detect_layer     import DetectionLayer  
 from   mrcnn.detect_tgt_layer_mod import DetectionTargetLayer_mod
@@ -85,7 +86,7 @@ class MaskRCNN():
     The actual Keras model is in the keras_model property.
     """
 
-    def __init__(self, mode, config, model_dir, FCN_layers = False):
+    def __init__(self, mode, config, model_dir):
         """
         mode: Either "training" or "inference"
         config: A Sub-class of the Config class
@@ -129,12 +130,13 @@ class MaskRCNN():
         }
         
 
-        self.keras_model = self.build(mode=mode, config=config, FCN_layers = FCN_layers)
+        # self.keras_model = self.build(mode=mode, config=config)
+        self.keras_model = self.build_mod(mode=mode, config=config)
 
         print('>>> MODIFIED MaskRCNN initialization complete -- WITHOUT MASKING LAYERS!!!!')
 
     
-    def build(self, mode, config, FCN_layers = False):
+    def build_mod(self, mode, config):
         '''
         Build MODIFIED Mask R-CNN architecture (NO MASK PROCESSING)
             input_shape: The shape of the input image.
@@ -349,21 +351,19 @@ class MaskRCNN():
             ##  Contextual Layer(CHM) to generate contextual feature maps using outputs from MRCNN 
             ##----------------------------------------------------------------------------         
             # Once we are comfortable with the results we can remove additional outputs from here.....
-            pred_heatmap , gt_heatmap, pred_heatmap_scores , gt_heatmap_scores, pred_tensor, gt_tensor     \
+            pred_heatmap , gt_heatmap, pred_heatmap_norm , gt_heatmap_norm, pred_tensor , gt_tensor, gt_deltas    \
                =  CHMLayer(config, name = 'cntxt_layer' ) \
-                    ([mrcnn_class, mrcnn_bbox, output_rois, target_class_ids, input_gt_class_ids, input_gt_boxes])
-                    # ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_gt_boxes, target_class_ids, target_bbox_deltas])
+                    ([mrcnn_class, mrcnn_bbox, output_rois, input_gt_class_ids, input_gt_boxes, target_class_ids,target_bbox_deltas])
             print('<<<  shape of pred_heatmap   : ', pred_heatmap.shape, ' Keras tensor ', KB.is_keras_tensor(pred_heatmap) )                         
             print('<<<  shape of gt_heatmap     : ', gt_heatmap.shape  , ' Keras tensor ', KB.is_keras_tensor(gt_heatmap) )
             
+                         
             ##------------------------------------------------------------------------
             ##  FCN Network Head
             ##------------------------------------------------------------------------
-            if FCN_layers :
-                fcn_heatmap = fcn_graph(pred_heatmap, config)
-                # fcn_heatmap = fcn_graph(pred_heatmap, config)
-                print('   fcn_heatmap  shape is : ', KB.int_shape(fcn_heatmap), ' Keras tensor ', KB.is_keras_tensor(fcn_heatmap) )        
-                         
+            # fcn_heatmap, fcn_class_logits, fcn_scores, fcn_bbox_deltas = fcn_graph_mod(pred_heatmap, config)
+            # fcn_heatmap = fcn_graph(pred_heatmap, config)
+            # print('   fcn_heatmap  shape is : ', KB.int_shape(fcn_heatmap), ' Keras tensor ', KB.is_keras_tensor(fcn_heatmap) )        
 
             ##------------------------------------------------------------------------
             ##  Loss layer definitions
@@ -372,7 +372,8 @@ class MaskRCNN():
             print('---------------------------------------------------')
             print('    building Loss Functions ')
             print('---------------------------------------------------')
-            # print(' gt_deltas         :', KB.is_keras_tensor(gt_deltas)      , KB.int_shape(gt_deltas        ))
+            print(' gt_deltas         :', KB.is_keras_tensor(gt_deltas)      , KB.int_shape(gt_deltas        ))
+            # print(' fcn_bbox_deltas   :', KB.is_keras_tensor(fcn_bbox_deltas), KB.int_shape(fcn_bbox_deltas  ))
             print(' target_class_ids  :', KB.is_keras_tensor(target_class_ids), KB.int_shape(target_class_ids ))
 
             rpn_class_loss   = KL.Lambda(lambda x: loss.rpn_class_loss_graph(*x),        name="rpn_class_loss")\
@@ -389,36 +390,35 @@ class MaskRCNN():
 
             # mrcnn_mask_loss  = KL.Lambda(lambda x: loss.mrcnn_mask_loss_graph(*x),  name="mrcnn_mask_loss") \
                                 # ([target_mask       , target_class_ids  , mrcnn_mask])
-            if FCN_layers:
-                print('\n\n\n')
-                print('---------------------------------------------------')
-                print('    Adding  FCN loss layers')
-                print('---------------------------------------------------')
 
-                # fcn_bbox_loss    = KL.Lambda(lambda x: loss.fcn_bbox_loss_graph(*x),  name="fcn_bbox_loss") \
+            # fcn_bbox_loss    = KL.Lambda(lambda x: loss.fcn_bbox_loss_graph(*x),  name="fcn_bbox_loss") \
                                  # ([gt_deltas, target_class_ids  , fcn_bbox_deltas])
                                 
-                # fcn_norm_loss  = KL.Lambda(lambda x: loss.fcn_norm_loss_graph(*x),  name="fcn_norm_loss") \
+            # fcn_norm_loss  = KL.Lambda(lambda x: loss.fcn_norm_loss_graph(*x),  name="fcn_norm_loss") \
                              # ([gt_heatmap, fcn_heatmap])
-                # fcn_loss       = KL.Lambda(lambda x: loss.fcn_loss_graph(*x), name="fcn_loss") \
-                                # ([gt_heatmap, fcn_heatmap])
-                print(' fcn_heatmap       :', KB.is_keras_tensor(fcn_heatmap))
-                print(' fcn_bbox_deltas   :', KB.is_keras_tensor(fcn_bbox_deltas), KB.int_shape(fcn_bbox_deltas  ))
-                # print(' fcn_bbox_loss     :', KB.is_keras_tensor(fcn_loss))
-                # print(' fcn_norm_loss     :', KB.is_keras_tensor(fcn_norm_loss))
-
+            # print('\n\n\n')
+            # print('---------------------------------------------------')
+            # print('    building fcn_norm_loss')
+            # print('---------------------------------------------------')
+            # fcn_loss       = KL.Lambda(lambda x: loss.fcn_loss_graph(*x), name="fcn_loss") \
+                            # ([gt_heatmap, fcn_heatmap])
             
             # print('\n Keras Tensors?? ')
             print(' output_rois       :', KB.is_keras_tensor(output_rois ))
             print(' pred_heatmap      :', KB.is_keras_tensor(pred_heatmap))
             print(' gt_heatmap        :', KB.is_keras_tensor(gt_heatmap))
-            # print(' gt_deltas         :', KB.is_keras_tensor(gt_deltas))
             # print(' pred_cls_cnt     :', KB.is_keras_tensor(pred_cls_cnt2))
             # print(' mask_loss         :', KB.is_keras_tensor(mrcnn_mask_loss))
             # print(' rpn_proposal_rois :', KB.is_keras_tensor(rpn_proposal_rois))
             
-
- 
+            # print(' fcn_heatmap       :', KB.is_keras_tensor(fcn_heatmap))
+            # print(' fcn_class_logits  :', KB.is_keras_tensor(fcn_class_logits))
+            # print(' fcn_scores        :', KB.is_keras_tensor(fcn_scores))
+            print(' gt_deltas         :', KB.is_keras_tensor(gt_deltas))
+            # print(' fcn_bbox_deltas   :', KB.is_keras_tensor(fcn_bbox_deltas))
+            # print(' target_class_ids  :', KB.is_keras_tensor(fcn_bbox_deltas))
+            # print(' fcn_bbox_loss     :', KB.is_keras_tensor(fcn_loss))
+            # print(' fcn_norm_loss     :', KB.is_keras_tensor(fcn_norm_loss))
 
 
             # Model Inputs 
@@ -440,82 +440,24 @@ class MaskRCNN():
                          , mrcnn_class_logits , mrcnn_class       , mrcnn_bbox                             # 9 -  12 (from FPN)
                          , rpn_class_loss     , rpn_bbox_loss                                               # 13 - 14
                          , mrcnn_class_loss   , mrcnn_bbox_loss                                             # 15 - 17
+                         # , fcn_bbox_loss 
                          , pred_heatmap                                                                    # 18
                          , gt_heatmap                                                                      # 19
-                         , pred_heatmap_scores                                                                      # 20
-                         , gt_heatmap_scores                                                                        # 21    
-                         , pred_tensor
-                         , gt_tensor
+                         , pred_heatmap_norm                                                                    # 18
+                         , gt_heatmap_norm                                                                      # 19
+                         , pred_tensor                                                                      # 20
+                         , gt_tensor                                                                        # 21    
+                         , gt_deltas                                                                        # 22    
+              
                          ]
                          # , active_class_ids
                          # , fcn_loss
                          # , fcn_heatmap                                                                      # 12
-            if FCN_layers:
-                outputs.append(fcn_heatmap)
-                # outputs.append(fcn_bbox_loss)
+        
         # end if Training
-        ##----------------------------------------------------------------------------                
-        ##
-        ##    Inference Mode
-        ##
-        ##----------------------------------------------------------------------------                
-        else:
-            ##------------------------------------------------------------------------
-            ##  FPN Layer
-            ##------------------------------------------------------------------------
-            # Network Heads
-            # Proposal classifier and BBox regressor heads
-            mrcnn_class_logits, mrcnn_class, mrcnn_bbox =\
-                fpn_classifier_graph(rpn_proposal_rois, mrcnn_feature_maps, config.IMAGE_SHAPE,
-                                     config.POOL_SIZE, config.NUM_CLASSES)
-
-            ##------------------------------------------------------------------------
-            ##  Detetcion Layer
-            ##------------------------------------------------------------------------
-            #  Generate detection targets
-            #    generated RPNs + mrcnn predictions ----> Target ROIs
-            #
-            # output is [batch, num_detections, (y1, x1, y2, x2, class_id, score)] in image coordinates
-            #------------------------------------------------------------------------           
-            detections = DetectionLayer(config, name="mrcnn_detection")([rpn_proposal_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
-            print('<<<  shape of DETECTIONS : ', KB.int_shape(detections), 
-                        ' Keras tensor ', KB.is_keras_tensor(detections) )                         
-            # Convert boxes to normalized coordinates
-            # TODO: let DetectionLayer return normalized coordinates to avoid unnecessary conversions
-            h, w = config.IMAGE_SHAPE[:2]
-            detection_boxes = KL.Lambda(lambda x: x[..., :4] / np.array([h, w, h, w]))(detections)
-            print('<<<  shape of DETECTION_BOXES : ', KB.int_shape(detection_boxes),
-                  ' Keras tensor ', KB.is_keras_tensor(detection_boxes) )                         
-
-            ##------------------------------------------------------------------------
-            ##  FPN Mask Layer
-            ##------------------------------------------------------------------------
-            # Create masks for detections
-            # mrcnn_mask = fpn_mask_graph(detection_boxes,
-                                        # mrcnn_feature_maps,
-                                        # config.IMAGE_SHAPE,
-                                        # config.MASK_POOL_SIZE,
-                                        # config.NUM_CLASSES)
-
-            ##---------------------------------------------------------------------------
-            ## CHM Inference Layer(s) to generate contextual feature maps using outputs from MRCNN 
-            ##----------------------------------------------------------------------------         
-            # pred_heatmap =  PCILayerTF(config, name = 'cntxt_layer') \
-                            # ([mrcnn_class, mrcnn_bbox, detection_boxes])
-            # print('<<<  shape of pred_heatmap   : ', pred_heatmap.shape, ' Keras tensor ', KB.is_keras_tensor(pred_heatmap) )                         
-                                        
-            ##------------------------------------------------------------------------
-            ## FCN Network Head
-            ##------------------------------------------------------------------------
-            # fcn_heatmap = fcn_graph(pred_heatmap, config)
-            # print('   fcn_heatmap  shape is : ', KB.int_shape(fcn_heatmap), ' Keras tensor ', KB.is_keras_tensor(fcn_heatmap) )        
-
-                                        
-            inputs  = [ input_image, input_image_meta]
-            outputs = [ detections,
-                        rpn_proposal_rois, rpn_class, rpn_bbox,
-                        mrcnn_class, mrcnn_bbox  ]
-            # end if Inference Mode        
+        
+        
+        
         model = KM.Model( inputs, outputs,  name='mask_rcnn')
         
         # Add multi-GPU support.
@@ -566,7 +508,7 @@ class MaskRCNN():
         ## Run object detection pipeline
         # print('    call predict()')
         detections, rpn_proposal_rois, rpn_class, rpn_bbox,\
-                    mrcnn_class, mrcnn_bbox  \
+                    mrcnn_class, mrcnn_bbox, mrcnn_mask \
                               =  self.keras_model.predict([molded_images, image_metas], verbose=0)
             
         # print('    return from  predict()')
@@ -581,18 +523,16 @@ class MaskRCNN():
         # Process detections
         results = []
         for i, image in enumerate(images):
-            # , final_masks =\
-            final_rois, final_class_ids, final_scores \
-              =  self.unmold_detections(detections[i], 
+            final_rois, final_class_ids, final_scores, final_masks =\
+                self.unmold_detections(detections[i], 
+                                       mrcnn_mask[i],
                                        image.shape  ,
-                                       windows[i])    
-           # mrcnn_mask[i],
-
+                                       windows[i])
             results.append({
                 "rois"     : final_rois,
                 "class_ids": final_class_ids,
                 "scores"   : final_scores,
-                # "masks"    : final_masks,
+                "masks"    : final_masks,
             })
         return results
 
@@ -629,7 +569,6 @@ class MaskRCNN():
         # log("    find_last info: checkpoint: {}".format(checkpoint))
         return dir_name, checkpoint
 
-        
     def save_model(self, filepath, by_name=False, exclude=None):
         """
         Modified version of the correspoding Keras function with
@@ -705,7 +644,6 @@ class MaskRCNN():
         print('    Load weights complete : ',filepath)        
         return(filepath)
 
-        
     def set_log_dir(self, model_path=None):
         """Sets the model log directory and epoch counter.
 
@@ -758,6 +696,7 @@ class MaskRCNN():
         log('    set_log_dir: Checkpoint path set to : {}'.format(self.checkpoint_path))
         log('    set_log_dir: self.epoch set to {} '.format(self.epoch))
 
+        
         
     def get_imagenet_weights(self):
         """
@@ -872,7 +811,7 @@ class MaskRCNN():
         boxes     = detections[:N, :4]
         class_ids = detections[:N, 4].astype(np.int32)
         scores    = detections[:N, 5]
-        # masks     = mrcnn_mask[np.arange(N), :, :, class_ids]
+        masks     = mrcnn_mask[np.arange(N), :, :, class_ids]
 
         # Compute scale and shift to translate coordinates to image domain.
         h_scale = image_shape[0] / (window[2] - window[0])
@@ -897,15 +836,15 @@ class MaskRCNN():
             N = class_ids.shape[0]
 
         # Resize masks to original image size and set boundary threshold.
-        # full_masks = []
-        # for i in range(N):
+        full_masks = []
+        for i in range(N):
             # Convert neural network mask to full size mask
-            # full_mask = utils.unmold_mask(masks[i], boxes[i], image_shape)
-            # full_masks.append(full_mask)
-        # full_masks = np.stack(full_masks, axis=-1)\
-            # if full_masks else np.empty((0,) + masks.shape[1:3])
+            full_mask = utils.unmold_mask(masks[i], boxes[i], image_shape)
+            full_masks.append(full_mask)
+        full_masks = np.stack(full_masks, axis=-1)\
+            if full_masks else np.empty((0,) + masks.shape[1:3])
 
-        return boxes, class_ids, scores     # , full_masks
+        return boxes, class_ids, scores, full_masks
 
         
     def ancestor(self, tensor, name, checked=None):
@@ -1010,7 +949,6 @@ class MaskRCNN():
             else:
                 print('   Layer: ', l.name, ' doesn''t have any weights !!!')
         return layers
-
 
     def set_trainable(self, layer_regex, keras_model=None, indent=0, verbose=1):
         '''
@@ -1205,6 +1143,8 @@ class MaskRCNN():
         print('Final : self.epoch {}   epochs {}'.format(self.epoch, epochs))
 
         
+        
+        
     def train_in_batches(self, 
               train_dataset, val_dataset, 
               learning_rate, 
@@ -1350,6 +1290,8 @@ class MaskRCNN():
 
             print('Final : self.epoch {}   epochs {}'.format(self.epoch, epochs))
         # end if (else)
+
+        
         
     def compile(self, learning_rate, momentum, losses):
         '''
@@ -1455,19 +1397,5 @@ class MaskRCNN():
             deduped_out_labels.append(new_label)
         return deduped_out_labels        
 
-    def layer_info(self):
-        print('\n')
-        print(' Inputs:') 
-        print(' -------')
-    
-        for i,x in enumerate(self.keras_model.inputs):
-            print(' layer: {:2d}    output : {:40s}   Type: {:15s}   Shape: {}'.format( i, x.name, x.dtype.name, x.shape) )
 
-        print('\n')
-        print(' Outputs:') 
-        print(' --------')
-
-        for i,x in enumerate(self.keras_model.outputs):
-            print(' layer: {:2d}    output : {:40s}   Type: {:15s}   Shape: {}'.format( i, x.name, x.dtype.name, x.shape) )
         
-        return

@@ -54,7 +54,7 @@ def batch_slice(inputs, graph_fn, batch_size, names=None):
         if not isinstance(output_slice, (tuple, list)):
             output_slice = [output_slice]
         outputs.append(output_slice)
-    
+
     # Change outputs from:
     #    a list of slices where each is a list of outputs, e.g.  [ [out1[0],out2[0]], [out1[1], out2[1]],.....
     # to 
@@ -65,6 +65,11 @@ def batch_slice(inputs, graph_fn, batch_size, names=None):
     if names is None:
         names = [None] * len(outputs)
 
+    # for o,n in zip(outputs,names):
+        # print(' outputs shape: ', len(o), 'name: ',n)
+        # for i in range(len(o)):
+            # print(' shape of item ',i, 'in tuple', o[i].shape)
+        
     result = [tf.stack(o, axis=0, name=n) for o, n in zip(outputs, names)]
     if len(result) == 1:
         result = result[0]
@@ -580,9 +585,10 @@ def generate_anchors(scales, ratios, feature_shape, feature_stride, anchor_strid
     '''
     
     # Get all combinations of scales and ratios
-    # print('>>> generate_anchors()')
+    print('>>> generate_anchors()')
+    print('    scales: ', scales, 'ratios: ', ratios)
     scales, ratios = np.meshgrid(np.array(scales), np.array(ratios))
-    # print(' meshgrid scales and ratios: ' ,scales.shape, ratios.shape)
+    print('    meshgrid scales: '  ,scales.shape, 'ratios: ', ratios.shape)
     
     scales = scales.flatten()
     ratios = ratios.flatten()
@@ -591,8 +597,8 @@ def generate_anchors(scales, ratios, feature_shape, feature_stride, anchor_strid
     heights = scales / np.sqrt(ratios)  # 3x1
     widths  = scales * np.sqrt(ratios)  # 3x1
 
-    # print(' flattened meshgrid scales and ratios: ' ,scales.shape, ratios.shape)    
-    # print(' Heights ' ,heights, ' widths  ' ,widths)
+    print('    flattened meshgrid scales and ratios: ' ,scales.shape, ratios.shape)    
+    print('    Heights ' ,heights, ' widths  ' ,widths)
     
     
     # Enumerate x,y shifts in feature space - which depends on the feature stride
@@ -639,22 +645,23 @@ def generate_pyramid_anchors(anchor_scales, anchor_ratios, feature_shapes, featu
     """
     # Anchors
     # [anchor_count, (y1, x1, y2, x2)]
-    # print('\n>>> Generate pyramid anchors ')
-    # print('      Anchor  scales:  ', anchor_scales)
-    # print('      Anchor  ratios:  ', anchor_ratios)
-    # print('      Anchor  stride:  ', anchor_stride)
-    # print('      Feature shapes:  ', feature_shapes)
-    # print('      Feature strides: ', feature_strides)
+    print('\n>>> Generate pyramid anchors ')
+    print('      Anchor  scales:  ', anchor_scales)
+    print('      Anchor  ratios:  ', anchor_ratios)
+    print('      Anchor  stride:  ', anchor_stride)
+    print('      Feature shapes:  ', feature_shapes)
+    print('      Feature strides: ', feature_strides)
 
     anchors = []
     for i in range(len(anchor_scales)):
         anchors.append(generate_anchors(anchor_scales[i], anchor_ratios, feature_shapes[i],
                                         feature_strides[i], anchor_stride))
+
     # anchors is a list of 5 np.arrays (one for each anchor scale)
     # concatenate these arrays on axis 0
     
     pp = np.concatenate(anchors, axis=0)
-    # print('    Size of anchor array is :',pp.shape)
+    print('    Size of anchor array is :',pp.shape)
    
     return pp
    
