@@ -301,11 +301,47 @@ def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
     loss = tf.reshape(loss, [1, 1], name = 'mrcnn_mask_loss')
     print('     final loss shape:', loss.get_shape(), type(loss), KB.is_keras_tensor(loss))
     return loss
+ 
 
+##-----------------------------------------------------------------------
+##  FCN normalized loss
+##-----------------------------------------------------------------------    
+def fcn_norm_loss_graph(input_target,  input_pred):
+
+    '''
+    Generate Loss based on Normalized score in PRED_HEATMAP_SCORES and FCN_HEATMAP_SCORES 
+    
+    Inputs:            
+    gt_heatmap_scores   [batch, num_classes, num_rois, 11 ] --> column 9 contains normalized score.
+    pred_heatmap:       [batch, num_classes, num_rois, 16 ] --> column 14 contains normalized score
+    '''
+    pred_scores   = input_pred[...,14]
+    target_scores = input_target[...,9]
+    # Reshape for simplicity. Merge first two dimensions into one.
+    print('\n>>> fcn_norm_loss_graph ' )
+    print('    target_scores shape :', target_scores.shape)
+    print('    pred_scores   shape :', pred_scores.shape)    
+
+    target_scores1 = KB.reshape(target_scores, (-1,1))
+    print('    target_scores1 shape :', target_scores1.get_shape(), KB.int_shape(target_scores1))        
+    pred_scores1   = KB.reshape(pred_scores  , (-1,1))
+    print('    pred_scores1  shape :', pred_scores1.get_shape())        
+
+#     # Compute binary cross entropy. If no positive ROIs, then return 0.
+#     # shape: [batch, roi, num_classes]
+#     # Smooth-L1 Loss
+    loss        = KB.switch(tf.size(target_scores1) > 0,
+                    smooth_l1_loss(y_true=target_scores1, y_pred=pred_scores1),
+                    tf.constant(0.0))
+    loss        = KB.mean(loss)
+    loss        = tf.reshape(loss, [1, 1], name = 'fcn_norm_loss')
+    print('    loss type is :', type(loss))
+    return loss
 
     
+    
 ##-----------------------------------------------------------------------
-##  FCN bbox loss
+##  FCN xxxx loss
 ##-----------------------------------------------------------------------    
 def fcn_bbox_loss_graph(target_bbox_deltas, target_class_ids, fcn_bbox_deltas):
     ''' 
@@ -397,65 +433,4 @@ def fcn_loss_graph(target_masks, pred_masks):
     print('    loss type is :', type(loss))
     return loss
  
-
-##-----------------------------------------------------------------------
-##  FCN loss
-##-----------------------------------------------------------------------    
-def fcn_norm_loss_graph(target_masks, pred_heatmap):
-    '''
-    Mask binary cross-entropy loss for the masks head.
-    target_masks:       [batch, height, width, num_classes].
-    pred_heatmap:         [batch, height, width, num_classes] float32 tensor
-    '''
-    # Reshape for simplicity. Merge first two dimensions into one.
-    print('\n>>> fcn_norm_loss_graph ' )
-    print('    target_masks     shape :', target_masks.shape)
-    print('    pred_heatmap       shape :', pred_heatmap.shape)    
-    print('\n    L2 normalization ------------------------------------------------------')   
-    pred_shape=KB.shape(pred_heatmap)
-    print(' pred_shape: KB.shape:' , pred_shape, ' tf.get_shape(): ', pred_heatmap.get_shape(), ' pred_maks.shape:', 
-                                     pred_heatmap.shape, 'tf.shape :', tf.shape(pred_heatmap))
     
-    output_flatten = KB.reshape(pred_heatmap, (pred_shape[0], -1, pred_shape[-1]) )
-    output_norm1   = KB.l2_normalize(output_flatten, axis = 1)    
-    output_norm    = KB.reshape(output_norm1,  pred_shape )    
-
-    print('   output_flatten    : ', KB.int_shape(output_flatten) , output_flatten.get_shape(),' Keras tensor ', KB.is_keras_tensor(output_flatten) )
-    print('   output_norm1      : ', KB.int_shape(output_norm1)   ,   output_norm1.get_shape(),' Keras tensor ', KB.is_keras_tensor(output_norm1) )
-    print('   output_norm final : ', KB.int_shape(output_norm)    ,    output_norm.get_shape(),' Keras tensor ', KB.is_keras_tensor(output_norm) )
-
-
-
-    print('\n    L2 normalization ------------------------------------------------------')         
-    target_shape  = KB.shape(target_masks)
-    print(' target shape is :' , target_shape, '   ', target_masks.get_shape(), target_masks.shape, tf.shape(target_masks))
- 
-    gauss_flatten = KB.reshape(target_masks, (target_shape[0], -1, target_shape[-1]) )
-    gauss_norm1   = KB.l2_normalize(gauss_flatten, axis = 1)
-    gauss_norm    = KB.reshape(gauss_norm1, target_shape)
-    
-    print('    guass_flatten         : ', gauss_flatten.shape, gauss_flatten.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_flatten) )
-    print('    gauss_norm shape      : ',   gauss_norm1.shape,   gauss_norm1.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_norm1) )
-    print('    gauss_norm final shape: ',    gauss_norm.shape,    gauss_norm.get_shape(), 'Keras tensor ', KB.is_keras_tensor(gauss_norm) )
-    
-    pred_heatmap1   = output_norm
-    target_masks1 = gauss_norm
-
-    # pred_shape    = KB.shape(target_masks1)
-    # print('    pred_shape shape :', pred_shape.eval(), KB.int_shape(pred_shape))    
-    target_masks1 = KB.reshape(target_masks1, (-1, pred_shape[1], pred_shape[2]))
-    print('    target_masks1 shape :', target_masks1.get_shape(), KB.int_shape(target_masks1))        
-    pred_heatmap1   = KB.reshape(pred_heatmap1  , (-1, pred_shape[1], pred_shape[2]))
-    print('    pred_heatmap1  shape :', pred_heatmap1.get_shape())        
-
-    # Compute binary cross entropy. If no positive ROIs, then return 0.
-    # shape: [batch, roi, num_classes]
-    # Smooth-L1 Loss
-    loss        = KB.switch(tf.size(target_masks1) > 0,
-                    smooth_l1_loss(y_true=target_masks1, y_pred=pred_heatmap1),
-                    tf.constant(0.0))
-    loss        = KB.mean(loss)
-    loss        = tf.reshape(loss, [1, 1], name = 'fcn_normalized_loss')
-    print('    loss type is :', type(loss))
-    return loss
-     

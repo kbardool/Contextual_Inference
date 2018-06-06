@@ -103,11 +103,11 @@ def suppress_small_boxes_graph(boxes, scores, min_area_threshold ):
     boxes:  [N, 4] each row is y1, x1, y2, x2
     scores  [N]
     '''
-    bx_area = (boxes[...,2]-boxes[...,0])*(boxes[...,3]-boxes[...,1])
+    bx_area         = (boxes[...,2]-boxes[...,0])*(boxes[...,3]-boxes[...,1])
     selected_idxs   = tf.where(tf.greater(bx_area , min_area_threshold))
-    selected_boxes  = tf.gather_nd(boxes, selected_idxs)
+    selected_boxes  = tf.gather_nd(boxes , selected_idxs)
     selected_scores = tf.gather_nd(scores, selected_idxs)
-    padding   = tf.maximum(tf.shape(boxes)[0] - tf.shape(selected_boxes)[0], 0)
+    padding         = tf.maximum(tf.shape(boxes)[0] - tf.shape(selected_boxes)[0], 0)
 
 #     print(' box area       : ', bx_area.shape)    
 #     print(' selected_idxs  : ', tf.shape(selected_idxs).eval())
@@ -157,13 +157,13 @@ class ProposalLayer(KE.Layer):
     def call(self, inputs):
     
         # Box Scores. Use the foreground class confidence. [Batch, num_rois, 1]
-        scores = inputs[0][:, :, 1]
+        scores = inputs[0][:, :, 1]      # rpn_socres
         
         # Box deltas                    [batch, num_rois, 4]
         # RPN_BBOX_STD_DEV              [0.1 0.1 0.2 0.2]
         # Multiply bbox [x,y,log(w),log(h)] by [0.1, 0.1, 0.2, 0.2]
         
-        deltas = inputs[1]
+        deltas = inputs[1]              # rpn bbox deltas
         deltas = deltas * np.reshape(self.config.RPN_BBOX_STD_DEV, [1, 1, 4])
         
         # Base anchors
@@ -270,7 +270,9 @@ class ProposalLayer(KE.Layer):
             return proposals
             
         # Apply the nms operation on slices of normalized boxes
-        proposals = utils.batch_slice([normalized_boxes, scores], nms, self.config.IMAGES_PER_GPU)
+        proposals = utils.batch_slice([normalized_boxes, scores], nms, 
+                                       self.config.IMAGES_PER_GPU, 
+                                       names=["rpn_roi_proposals"])
         print('     Output: Prposals shape : ', proposals.shape, KB.int_shape(proposals))
 
         return proposals

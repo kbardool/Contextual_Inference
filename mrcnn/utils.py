@@ -358,7 +358,10 @@ def non_max_suppression(boxes, scores, threshold):
     # print('====> Final Picks: ', pick)
     return np.array(pick, dtype=np.int32)
 
-
+    
+###############################################################################
+##  Bounding box refinement - APPLY BBOX DELTAS
+###############################################################################  
 def apply_box_deltas(boxes, deltas):
     """
     Applies the given deltas to the given boxes.
@@ -389,38 +392,38 @@ def apply_box_deltas(boxes, deltas):
     
     return np.stack([y1, x1, y2, x2], axis=1)
 
+    
+def apply_box_deltas_tf(boxes, deltas):
+    """
+    Applies the given deltas to the given boxes.
+    boxes:          [BS, N, (y1, x1, y2, x2)]. 
+                    Note that (y2, x2) is outside the box.
+    deltas:         [BS, N, (dy, dx, log(dh), log(dw))]
+    """
+    
+    boxes    = tf.cast(boxes, tf.float32)
+    
+    # Convert to y, x, h, w
+    height   = boxes[:,:, 2] - boxes[:,:, 0]
+    width    = boxes[:,:, 3] - boxes[:,:, 1]
+    center_y = boxes[:,:, 0] + 0.5 * height
+    center_x = boxes[:,:, 1] + 0.5 * width
+    
+    # Apply deltas
+    center_y += deltas[:,:, 0] * height
+    center_x += deltas[:,:, 1] * width
+    height   *= tf.exp(deltas[:,:, 2])
+    width    *= tf.exp(deltas[:,:, 3])
+    
+    # Convert back to y1, x1, y2, x2
+    y1 = center_y - 0.5 * height
+    x1 = center_x - 0.5 * width
+    y2 = y1 + height
+    x2 = x1 + width
+    return tf.stack([y1, x1, y2, x2], axis=-1)
 
 ###############################################################################
-##  Miscellenous Graph Functions
-###############################################################################
-
-def trim_zeros_graph(boxes, name=None):
-    """
-    Often boxes are represented with matricies of shape [N, 4] and
-    are padded with zeros. This removes zero boxes by summing the coordinates
-    of boxes, converting 0 to False and <> 0 ti True and creating a boolean mask
-    
-    boxes:      [N, 4] matrix of boxes.
-    non_zeros:  [N] a 1D boolean mask identifying the rows to keep
-    """
-    # sum tf.abs(boxes) across axis 1 (sum all cols for each row) and cast to boolean.
-    non_zeros = tf.cast(tf.reduce_sum(tf.abs(boxes), axis=1), tf.bool)
-    
-    # extract non-zero rows from boxes
-    boxes = tf.boolean_mask(boxes, non_zeros, name=name)
-    return boxes, non_zeros
-
-def batch_pack_graph(x, counts, num_rows):
-    """
-    Picks different number of values from each row in x depending on the values in counts.
-    """
-    outputs = []
-    for i in range(num_rows):
-        outputs.append(x[i, :counts[i]])
-    return tf.concat(outputs, axis=0)
-    
-###############################################################################
-## box_refinement_graph
+## box_refinement_graph - GENERATE BBOX DELTAS
 ###############################################################################
 def box_refinement_graph(box, gt_box):
     """
@@ -477,6 +480,61 @@ def box_refinement(box, gt_box):
 
     return np.stack([dy, dx, dh, dw], axis=1)
 
+###############################################################################
+##  Bounding box clipping
+###############################################################################
+
+def clip_to_window_tf(window, boxes):
+    '''
+    window: (y1, x1, y2, x2). The window in the image we want to clip to.
+    boxes: [N, (y1, x1, y2, x2)]
+    '''
+    window = tf.cast(window, tf.float32) 
+    num_images = tf.shape(boxes)[0]
+    num_rois   = tf.shape(boxes)[1]
+    
+    low_vals   = tf.stack([window[:,0],window[:,1], window[:,0], window[:,1]], axis = -1)
+    high_vals  = tf.stack([window[:,2],window[:,3], window[:,2], window[:,3]], axis = -1)
+    
+    low_vals   = tf.expand_dims(low_vals, axis = 1)
+    high_vals  = tf.expand_dims(high_vals, axis = 1)
+    
+    low_vals   = tf.tile(low_vals ,[num_images, num_rois,1])    
+    high_vals  = tf.tile(high_vals,[num_images, num_rois,1])    
+    
+    tmp1 = tf.where(boxes < high_vals , boxes,  high_vals)
+    tmp2 = tf.where( tmp1 > low_vals  , tmp1 ,  low_vals )
+    return tmp2
+    
+###############################################################################
+##  Miscellenous Graph Functions
+###############################################################################
+
+def trim_zeros_graph(boxes, name=None):
+    """
+    Often boxes are represented with matricies of shape [N, 4] and
+    are padded with zeros. This removes zero boxes by summing the coordinates
+    of boxes, converting 0 to False and <> 0 ti True and creating a boolean mask
+    
+    boxes:      [N, 4] matrix of boxes.
+    non_zeros:  [N] a 1D boolean mask identifying the rows to keep
+    """
+    # sum tf.abs(boxes) across axis 1 (sum all cols for each row) and cast to boolean.
+    non_zeros = tf.cast(tf.reduce_sum(tf.abs(boxes), axis=1), tf.bool)
+    
+    # extract non-zero rows from boxes
+    boxes = tf.boolean_mask(boxes, non_zeros, name=name)
+    return boxes, non_zeros
+
+def batch_pack_graph(x, counts, num_rows):
+    """
+    Picks different number of values from each row in x depending on the values in counts.
+    """
+    outputs = []
+    for i in range(num_rows):
+        outputs.append(x[i, :counts[i]])
+    return tf.concat(outputs, axis=0)
+    
 
 ###############################################################################
 ## Masks
@@ -515,6 +573,7 @@ def minimize_mask(bbox, mask, mini_shape):
         y1, x1, y2, x2 = bbox[i][:4]
         # print('    bbox: {}      m[{}:{} , {}:{}]    m.shape: {} '.format(i, y1,y2,x1,x2, m.shape))
         m = m[y1:y2, x1:x2]
+        # print(' m.size is ', m.size)
         if m.size == 0:
             print('      ######  m.size is zero for bbox ',i)
             raise Exception("Invalid bounding box with area of zero")
@@ -585,10 +644,7 @@ def generate_anchors(scales, ratios, feature_shape, feature_stride, anchor_strid
     '''
     
     # Get all combinations of scales and ratios
-    print('>>> generate_anchors()')
-    print('    scales: ', scales, 'ratios: ', ratios)
     scales, ratios = np.meshgrid(np.array(scales), np.array(ratios))
-    print('    meshgrid scales: '  ,scales.shape, 'ratios: ', ratios.shape)
     
     scales = scales.flatten()
     ratios = ratios.flatten()
@@ -596,9 +652,7 @@ def generate_anchors(scales, ratios, feature_shape, feature_stride, anchor_strid
     # Enumerate heights and widths from scales and ratios
     heights = scales / np.sqrt(ratios)  # 3x1
     widths  = scales * np.sqrt(ratios)  # 3x1
-
-    print('    flattened meshgrid scales and ratios: ' ,scales.shape, ratios.shape)    
-    print('    Heights ' ,heights, ' widths  ' ,widths)
+    # print('     - generate_anchors()   Scale(s): ', scales, 'Ratios: ', ratios, ' Heights: ' ,heights, 'Widths: ' ,widths)
     
     
     # Enumerate x,y shifts in feature space - which depends on the feature stride
@@ -645,23 +699,22 @@ def generate_pyramid_anchors(anchor_scales, anchor_ratios, feature_shapes, featu
     """
     # Anchors
     # [anchor_count, (y1, x1, y2, x2)]
-    print('\n>>> Generate pyramid anchors ')
-    print('      Anchor  scales:  ', anchor_scales)
-    print('      Anchor  ratios:  ', anchor_ratios)
-    print('      Anchor  stride:  ', anchor_stride)
-    print('      Feature shapes:  ', feature_shapes)
-    print('      Feature strides: ', feature_strides)
+    # print('\n>>> Generate pyramid anchors ')
+    # print('      Anchor  scales:  ', anchor_scales)
+    # print('      Anchor  ratios:  ', anchor_ratios)
+    # print('      Anchor  stride:  ', anchor_stride)
+    # print('      Feature shapes:  ', feature_shapes)
+    # print('      Feature strides: ', feature_strides)
 
     anchors = []
     for i in range(len(anchor_scales)):
         anchors.append(generate_anchors(anchor_scales[i], anchor_ratios, feature_shapes[i],
                                         feature_strides[i], anchor_stride))
-
     # anchors is a list of 5 np.arrays (one for each anchor scale)
     # concatenate these arrays on axis 0
     
     pp = np.concatenate(anchors, axis=0)
-    print('    Size of anchor array is :',pp.shape)
+    # print('    Size of anchor array is :',pp.shape)
    
     return pp
    

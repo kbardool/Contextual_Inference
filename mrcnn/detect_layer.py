@@ -66,6 +66,7 @@ def refine_detections(rois, probs, deltas, window, config):
     probs:          mrcnn_class - [N, num_classes]. Class probabilities.
     deltas:         mrcnn_bbox  - [N, num_classes, (dy, dx, log(dh), log(dw))]. 
                                   Class-specific bounding box deltas.
+                                  
     window:         (y1, x1, y2, x2) in image coordinates. The part of the image
                     that contains the image excluding the padding.
 
@@ -79,15 +80,15 @@ def refine_detections(rois, probs, deltas, window, config):
     class_ids       = np.argmax(probs, axis=1)
     
     ##  2. Get Class probability(score) and bbox delta of the top class of each ROI
-    class_scores    = probs[np.arange(class_ids.shape[0]), class_ids]
-    deltas_specific = deltas[np.arange(deltas.shape[0]), class_ids]
+    class_scores    =  probs[np.arange(class_ids.shape[0]), class_ids]
+    deltas_specific = deltas[np.arange(deltas.shape[0])   , class_ids]
     
     ##  3. Apply bounding box delta to the corrsponding rpn_proposal
     # Shape: [boxes, (y1, x1, y2, x2)] in normalized coordinates
     refined_rois    = apply_box_deltas(rois, deltas_specific * config.BBOX_STD_DEV)
     
     ##  4. Convert the refined roi coordiates from normalized to image domain
-    # TODO: better to keep them normalized until later
+    # TODO: better to keep them normalized until later   
     height, width   = config.IMAGE_SHAPE[:2]
     refined_rois   *= np.array([height, width, height, width])
     
@@ -181,19 +182,19 @@ class DetectionLayer(KE.Layer):
 
     def call(self, inputs):
         print('    Detection Layer : call() ', type(inputs), len(inputs))    
-        print('     rpn_proposals_roi  :',  inputs[0].shape) # , inputs[0].get_shape(), KB.int_shape(inputs[0]) )
-        print('     mrcnn_class.shape  :',  inputs[1].shape) # , inputs[1].get_shape(), KB.int_shape(inputs[1]) ) 
-        print('     mrcnn_bboxes.shape :',  inputs[2].shape) # , inputs[2].get_shape(), KB.int_shape(inputs[2]) )
-        print('     input_image_meta   :',  inputs[3].shape) # , inputs[3].get_shape(), KB.int_shape(inputs[3]) ) 
+        print('     rpn_proposals_roi  :',  inputs[0].shape , inputs[0].get_shape(), KB.int_shape(inputs[0]) )
+        print('     mrcnn_class.shape  :',  inputs[1].shape , inputs[1].get_shape(), KB.int_shape(inputs[1]) ) 
+        print('     mrcnn_bboxes.shape :',  inputs[2].shape , inputs[2].get_shape(), KB.int_shape(inputs[2]) )
+        print('     input_image_meta   :',  inputs[3].shape , inputs[3].get_shape(), KB.int_shape(inputs[3]) ) 
     
         def wrapper(rois, mrcnn_class, mrcnn_bbox, image_meta):
             from mrcnn.utils import parse_image_meta
             detections_batch = []
-            # print('    Wrapper for Detection Layer : call() ', type(inputs), len(inputs))    
-            # print('     rpn_proposals_roi  :',  inputs[0].shape, rois.shape, type(rois)) # , inputs[0].get_shape(), KB.int_shape(inputs[0]) )
-            # print('     mrcnn_class.shape  :',  inputs[1].shape, mrcnn_class.shape, type(mrcnn_class)) # , inputs[1].get_shape(), KB.int_shape(inputs[1]) ) 
-            # print('     mrcnn_bboxes.shape :',  inputs[2].shape, mrcnn_bbox.shape, type(mrcnn_bbox)) # , inputs[2].get_shape(), KB.int_shape(inputs[2]) )
-            # print('     image_meta         :',  inputs[3].shape, image_meta.shape, type(image_meta)) # , inputs[3].get_shape(), KB.int_shape(inputs[3]) ) 
+            print('    Wrapper for Detection Layer : call() ', type(inputs), len(inputs))    
+            print('     rpn_proposals_roi  :',  inputs[0].shape, rois.shape, type(rois)) # , inputs[0].get_shape(), KB.int_shape(inputs[0]) )
+            print('     mrcnn_class.shape  :',  inputs[1].shape, mrcnn_class.shape, type(mrcnn_class)) # , inputs[1].get_shape(), KB.int_shape(inputs[1]) ) 
+            print('     mrcnn_bboxes.shape :',  inputs[2].shape, mrcnn_bbox.shape, type(mrcnn_bbox)) # , inputs[2].get_shape(), KB.int_shape(inputs[2]) )
+            print('     image_meta         :',  inputs[3].shape, image_meta.shape, type(image_meta)) # , inputs[3].get_shape(), KB.int_shape(inputs[3]) ) 
                 
             # process item per item in batch 
             

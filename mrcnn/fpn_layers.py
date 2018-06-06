@@ -87,9 +87,7 @@ def fpn_classifier_graph(rois, feature_maps, image_shape, pool_size, num_classes
     Returns:
     --------
     logits:             [N, NUM_CLASSES] classifier logits (before softmax)
-    
     probs:              [N, NUM_CLASSES] classifier probabilities
-    
     bbox_deltas:        [N, (dy, dx, log(dh), log(dw))] 
                         Deltas to apply to proposal boxes
                         
@@ -127,9 +125,14 @@ def fpn_classifier_graph(rois, feature_maps, image_shape, pool_size, num_classes
     print('     pool_squeeze(Shared) output shape is : ' , shared.get_shape())
 
     # Classifier head
-    mrcnn_class_logits = KL.TimeDistributed(KL.Dense(num_classes),name='mrcnn_class_logits')(shared)
+    x = KL.TimeDistributed(KL.Dense(num_classes))(shared)
+    mrcnn_class_logits = KL.Lambda(lambda x: KB.identity(x, name = 'mrcnn_class_logits'), name='mrcnn_class_logits')(x)
+    
+    
+    x = KL.TimeDistributed(KL.Activation("softmax"))(mrcnn_class_logits)
+    mrcnn_probs        = KL.Lambda(lambda x: KB.identity(x, name = 'mrcnn_class'), name='mrcnn_class')(x)
+    
     print('     mrcnn_class_logits   output shape is : ' , mrcnn_class_logits.get_shape())    
-    mrcnn_probs        = KL.TimeDistributed(KL.Activation("softmax"), name="mrcnn_class")(mrcnn_class_logits)
     print('     mrcnn_class_probs    output shape is : ' , mrcnn_probs.get_shape())    
 
     # BBox head
@@ -138,9 +141,9 @@ def fpn_classifier_graph(rois, feature_maps, image_shape, pool_size, num_classes
     print('   mrcnn_bbox_fc        output shape is : ' , x.get_shape())    
     # Reshape to [batch, boxes, num_classes, (dy, dx, log(dh), log(dw))]
     s = KB.int_shape(x)
-    mrcnn_bbox = KL.Reshape((s[1], num_classes, 4), name="mrcnn_bbox")(x)
+    x = KL.Reshape((s[1], num_classes, 4) )(x)
+    mrcnn_bbox = KL.Lambda(lambda x: KB.identity(x, name = 'mrcnn_bbox'), name="mrcnn_bbox_regression") (x)
     print('   mrcnn_bbox           output shape is : ' , mrcnn_bbox.get_shape())    
-
     return mrcnn_class_logits, mrcnn_probs, mrcnn_bbox
 
     

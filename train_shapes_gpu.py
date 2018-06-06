@@ -11,26 +11,34 @@ import sys
 import random
 import math
 import re
-import  gc
+import gc
 import time
+import scipy.misc
 import numpy as np
 import cv2
 import matplotlib
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import keras
+import pprint
+import argparse
 import keras.backend as KB
+
 sys.path.append('../')
 
-import mrcnn.model     as modellib
+import mrcnn.model_mod as modellib
 import mrcnn.visualize as visualize
 import mrcnn.shapes    as shapes
 from mrcnn.config      import Config
 from mrcnn.dataset     import Dataset 
-from mrcnn.utils       import log, stack_tensors, stack_tensors_3d
-from mrcnn.datagen     import data_generator, load_image_gt
-from mrcnn.callbacks   import get_layer_output_1,get_layer_output_2
-from mrcnn.visualize   import plot_gaussian
+from mrcnn.utils       import log
+# from mrcnn.datagen     import data_generator, load_image_gt
+# from mrcnn.callbacks   import get_layer_output_1,get_layer_output_2
+# from mrcnn.visualize   import plot_gaussian
+
+print("Tensorflow Version: {}   Keras Version : {} ".format(tf.__version__,keras.__version__))
+pp = pprint.PrettyPrinter(indent=2, width=100)
+np.set_printoptions(linewidth=100,precision=4)
 
 ##------------------------------------------------------------------------------------
 ## process input arguments
@@ -60,6 +68,12 @@ parser.add_argument('--last_epoch', required=False,
                     default=0,
                     metavar="<last epoch ran>",
                     help='Identify last completed epcoh for tensorboard continuation')
+                    
+parser.add_argument('--batch_size', required=False,
+                    default=5,
+                    metavar="<batch size>",
+                    help='Identify number of samples in each each batch (default 5')
+
 
 parser.add_argument('--lr', required=False,
                     default=0.001,
@@ -84,38 +98,44 @@ print("Model              :   ", args.model)
 # print("Logs:    ", args.logs)
 # print("Limit:   ", args.limit)
 print("Epochs to run      :   ", args.epochs)
-print("Steps in each epoch:   ", args.steps_in_epoch)
+print("Steps in each epoch:   ", args.steps_per_epoch)
 
 
 ##------------------------------------------------------------------------------------
 ## setup project directories
+##------------------------------------------------------------------------------------
 #---------------------------------------------------------------------------------
 # # Root directory of the project 
 # MODEL_DIR    :    Directory to save logs and trained model
 # COCO_MODEL_PATH  : Path to COCO trained weights
 #---------------------------------------------------------------------------------
 
-# WINDOWS MACHINE ------------------------------------------------------------------
-# WINDOWS MACHINE ------------------------------------------------------------------
-ROOT_DIR          = 'E:\'
-MODEL_PATH        = os.path.join(ROOT_DIR, "models")
-DATASET_PATH      = os.path.join(ROOT_DIR, 'MLDatasets')
-#### MODEL_DIR         = os.path.join(MODEL_PATH, "mrcnn_logs")
-COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
-DEFAULT_LOGS_DIR  = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
-COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
+if syst == 'Windows':
+    # Root directory of the project
+    print(' windows ' , syst)
+    # WINDOWS MACHINE ------------------------------------------------------------------
+    ROOT_DIR          = "E:\\"
+    MODEL_PATH        = os.path.join(ROOT_DIR, "models")
+    DATASET_PATH      = os.path.join(ROOT_DIR, 'MLDatasets')
+    #### MODEL_DIR         = os.path.join(MODEL_PATH, "mrcnn_logs")
+    COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
+    DEFAULT_LOGS_DIR  = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
+    COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
+    RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
+elif syst == 'Linux':
+    print(' Linx ' , syst)
+    # LINUX MACHINE ------------------------------------------------------------------
+    ROOT_DIR          = os.getcwd()
+    MODEL_PATH        = os.path.expanduser('~/models')
+    DATASET_PATH      = os.path.expanduser('~/MLDatasets')
+    # #### MODEL_DIR         = os.path.join(MODEL_PATH, "mrcnn_development_logs")
+    COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
+    COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
+    DEFAULT_LOGS_DIR  = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
+    RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
+else :
+    raise Error('unreconized system  '      )
 
-# RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
-
-# LINUX MACHINE ------------------------------------------------------------------
-# ROOT_DIR          = os.getcwd()
-# MODEL_PATH        = os.path.expanduser('~/models')
-# DATASET_PATH      = os.path.expanduser('~/MLDatasets')
-#### MODEL_DIR         = os.path.join(MODEL_PATH, "mrcnn_logs")
-# COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
-# COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
-# DEFAULT_LOGS_DIR = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
-# RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
 
 ##------------------------------------------------------------------------------------
 ## setup tf session and debugging 
@@ -150,16 +170,18 @@ COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
 ## Build configuration object 
 ##------------------------------------------------------------------------------------
 config = shapes.ShapesConfig()
-config.BATCH_SIZE      = 2                  # Batch size is 2 (# GPUs * images/GPU).
-config.IMAGES_PER_GPU  = 2                  # Must match BATCH_SIZE
-config.STEPS_PER_EPOCH = int(args.steps_in_epoch)
+config.BATCH_SIZE      = int(args.batch_size)                  # Batch size is 2 (# GPUs * images/GPU).
+config.IMAGES_PER_GPU  = int(args.batch_size)                  # Must match BATCH_SIZE
+config.STEPS_PER_EPOCH = int(args.steps_per_epoch)
 config.LEARNING_RATE   = float(args.lr)
-
 config.EPOCHS_TO_RUN   = int(args.epochs)
 config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
 config.LAST_EPOCH_RAN  = int(args.last_epoch)
-# config.LAST_EPOCH_RAN  = 5784
-config.display() 
+
+train_layers = [ 'mrcnn', 'fpn','rpn']
+loss_names   = [ "rpn_class_loss", "rpn_bbox_loss" , "mrcnn_class_loss", "mrcnn_bbox_loss"]
+
+config.display()
 
 ##------------------------------------------------------------------------------------
 ## Build shape dataset        
@@ -167,12 +189,12 @@ config.display()
 # Training dataset
 # generate 500 shapes 
 dataset_train = shapes.ShapesDataset()
-dataset_train.load_shapes(500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+dataset_train.load_shapes(2000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
 dataset_train.prepare()
 
 # Validation dataset
 dataset_val = shapes.ShapesDataset()
-dataset_val.load_shapes(50, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+dataset_val.load_shapes(500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
 dataset_val.prepare()
 
 ##------------------------------------------------------------------------------------    
@@ -184,9 +206,6 @@ dataset_val.prepare()
 #     mask, class_ids = dataset_train.load_mask(image_id)
 #     visualize.display_top_masks(image, mask, class_ids, dataset_train.class_names)
 
-import pprint
-pp = pprint.PrettyPrinter(indent=2, width=100)
-np.set_printoptions(linewidth=100,precision=4)
 ##------------------------------------------------------------------------------------
 ## Build Model
 ##------------------------------------------------------------------------------------
@@ -199,38 +218,12 @@ except:
 KB.clear_session()
 model = modellib.MaskRCNN(mode="training", config=config, model_dir=MODEL_DIR)
 
-
-
-print(' COCO Model Path       : ', COCO_MODEL_PATH)
-print(' Checkpoint folder Path: ', MODEL_DIR)
-print(' Model Parent Path     : ', MODEL_PATH)
-# print(' Resent Model Path     : ', RESNET_MODEL_PATH)
-print(model.find_last())
-
-# model.compile_only(learning_rate=config.LEARNING_RATE, layers='all')
-# tst = model.keras_model.to_json()
-# save_model(MODEL_DIR, 'my_saved_model')
-# print(model.find_last())
 #model.keras_model.summary(line_length = 120) 
 
 ##------------------------------------------------------------------------------------
 ## Load Model hf5 file 
 ##------------------------------------------------------------------------------------
 # KB.set_learning_phase(1)
-'''
-methods to load weights
-1 - load a specific file
-2 - find a last checkpoint in a specific folder 
-3 - use init_with keyword 
-'''
-## 1- look for a specific weights file 
-## Load trained weights (fill in path to trained weights here)
-# model_path  = 'E:\\Models\\mrcnn_logs\\shapes20180428T1819\\mask_rcnn_shapes_5784.h5'
-# print(' model_path : ', model_path )
-# assert model_path != "", "Provide path to trained weights"
-# print("Loading weights from ", model_path)
-# model.load_weights(model_path, by_name=True)    
-# print('Load weights complete')
 
 # ## 2- look for last checkpoint file in a specific folder (not working correctly)
 # model.config.LAST_EPOCH_RAN = 5784
@@ -266,6 +259,7 @@ print()
 # print("Logs:    ", args.logs)
 # print("Limit:   ", args.limit)
 print("    Model                 : ", args.model)
+print("    learning rate         : ", model.config.LEARNING_RATE)
 print("    Last Epcoh Ran        : ", config.LAST_EPOCH_RAN)
 print("    Epochs to run         : ", config.EPOCHS_TO_RUN)
 print("    Steps in each epoch   : ", config.STEPS_PER_EPOCH)
@@ -289,24 +283,62 @@ config.display()
 # layers. You can also pass a regular expression to select
 # which layers to train by name pattern.
 
-# model.train(dataset_train, dataset_val, 
-#             learning_rate=config.LEARNING_RATE, 
-# #             epochs = 69,
-#             epochs_to_run =2, 
-#             layers='heads')
-
-train_layers = ['mrcnn', 'fpn','rpn']
-loss_names   = [  "rpn_class_loss", "rpn_bbox_loss" , "mrcnn_class_loss", "mrcnn_bbox_loss"]
  
-config.LEARNING_RATE = 1.0e-4
 
 model.train(dataset_train, dataset_val, 
-            learning_rate=config.LEARNING_RATE, 
+            learning_rate   = config.LEARNING_RATE, 
+            epochs_to_run   = config.EPOCHS_TO_RUN, 
+            batch_size      = config.BATCH_SIZE, 
+            steps_per_epoch = config.STEPS_PER_EPOCH, 
 #             epochs = 25,
-            epochs_to_run =2000, 
-#             batch_size = 0
-#             steps_per_epoch = 0 
             layers = train_layers,
             losses = loss_names,
             min_LR = 1.0e-6
             )
+
+##------------------------------------------------------------------------------------
+##  Training heads using train_in_batches ()
+##------------------------------------------------------------------------------------
+# 
+# We need to use this method for the time being as the fit generator does not have 
+# provide EASY access to the output in Keras call backs. By training in batches, we pass
+# a batch through the network, pick up the generated RoI detections and bounding boxes 
+# and generate our semantic / gaussian tensors ...
+# 
+# model.train_in_batches(dataset_train, dataset_val, 
+                       # learning_rate = config.LEARNING_RATE, 
+                       # epochs_to_run = config.EPOCHS_TO_RUN,
+                       # layers='heads')
+
+'''
+
+
+
+
+# ## Fine Tuning
+# Fine tune all layers
+
+# In[ ]:
+
+
+# Fine tune all layers
+# Passing layers="all" trains all layers. You can also 
+# pass a regular expression to select which layers to
+# train by name pattern.
+model.train(dataset_train, dataset_val, 
+            learning_rate=config.LEARNING_RATE / 10,
+            epochs=211,
+            layers="all")
+
+
+# ## Save 
+
+# In[ ]:
+
+
+# Save weights
+# Typically not needed because callbacks save after every epoch
+# Uncomment to save manually
+model_path = os.path.join(MODEL_DIR, "mask_rcnn_shapes.h5")
+model.keras_model.save_weights(model_path)
+'''

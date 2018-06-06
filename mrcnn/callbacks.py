@@ -29,7 +29,7 @@ import keras.initializers as KI
 import keras.engine  as KE
 import keras.models  as KM
 import pprint 
-pp = pprint.PrettyPrinter(indent=2, width=100)
+pp = pprint.PrettyPrinter(indent=4, width=100)
 
 # def get_layer_output(model, output_layer, model_input, training_flag = True):
     # _mrcnn_class = KB.function([model.input]+[KB.learning_phase()],
@@ -71,14 +71,26 @@ def get_layer_output_2(model, model_input, training_flag = True, verbose = True)
             print('Input {:2d}:  ({:40s}) \t  Input shape: {}'.format(i, input_layer.name, input.shape))
 
     get_output = KB.function(model.input , model.outputs)
-    model_output = get_output(model_input)                  
+    results = get_output(model_input)                  
     
-    print(type(model_output))
+    print(type(results))
+    # if verbose:
+        # print('\n/* Outputs */')    
+        # for i, (output_layer, output) in enumerate (zip (model.outputs , model_output)):
+            # print('Output {:2d}: ({:40s}) \t  Output shape: {}'.format(i, output_layer.name, output.shape))
+            
+            
     if verbose:
         print('\n/* Outputs */')    
-        for i, (output_layer, output) in enumerate (zip (model.outputs , model_output)):
-            print('Output {:2d}: ({:40s}) \t  Output shape: {}'.format(i, output_layer.name, output.shape))
-    return model_output    
+        for line, ( output_layer, output) in  enumerate(zip (model.outputs, results)):
+            print('Output idx: {:2d}    Layer: {:2d}: ({:40s}) \t  Output shape: {}'.format(line, line, output_layer.name, output.shape))
+        print('\nNumber of layers generated: ', len(results), '\n')
+
+        for line, ( output_layer, output) in  enumerate(zip (model.outputs, results)):
+            m = re.fullmatch(r"^.*/(.*):.*$", output_layer.name )
+            varname  = m.group(1) if m else "<varname>"
+            print('{:25s} = model_output[{:d}]          # layer: {:2d}   shape: {}' .format(varname, line, line, output.shape ))            
+    return results
 
     
 class MyCallback(keras.callbacks.Callback):
@@ -94,17 +106,14 @@ class MyCallback(keras.callbacks.Callback):
 
     def on_epoch_begin(self, epoch, logs = {}) :
         print('\n>>> Start epoch {}  \n'.format(epoch))
-        pp = pprint.PrettyPrinter(indent=4)
         return 
 
     def on_epoch_end  (self, epoch, logs = {}): 
         print('\n>>>End   epoch {}  \n'.format(epoch))
-        pp = pprint.PrettyPrinter(indent=4)        
         return 
 
     def on_batch_begin(self, batch, logs = {}):
         print('\n... Start training of batch {} size {} '.format(batch,logs['size']))
-        pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(self.model._feed_inputs)
         k_sess = KB.get_session()
         # self.model._feed_inputs[1].eval(session=k_sess)
@@ -112,32 +121,16 @@ class MyCallback(keras.callbacks.Callback):
         
     def on_batch_end  (self, batch, logs = {}): 
         print('\n... End   training of batch {} '.format(batch,logs['loss']))
-        pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(logs)
-        # i = 229
-        # print('\n shape of output layer: {} '.format(i)) ## , tf.shape(self.model.layers[i].output)))
-        # for i in (self.model.input):
-            # print('input  type: {}'.format(i.get_shape()))
-        # print(self.model.layers[229].output.eval())
-        # layer_out = get_layer_output(self.model, 229, self.model.input, 1)
-        # print('type of layer out is {} shape is {}'.format(type(layer_out), layer_out.shape))
         return                                          
         
     def on_train_begin(self,logs = {}):        
         pp = pprint.PrettyPrinter(indent=4)
-        # i = 229
-        # pp.pprint(self.model.layers[i].__dict__)  
-        # pp.pprint(self.model.layers[i]._inbound_nodes[0].__dict__)  
-        # pp.pprint(self.model.layers[i].layer.__dict__)  
-        # print('size of input {} type of input {}'.format(len(self.model.input), type(self.model.input)))
-
         print('\n *****  Start of Training {} '.format(time.time()))
         return 
         
     def on_train_end  (self,logs = {}):        
         pp = pprint.PrettyPrinter(indent=4)  
-        # pp.pprint(self.model.__dict__)
-        print('\n'*3)
-        # pp.pprint(dir(self.model))
+        print('\n\n')
         print('***** End of Training   {} '.format(time.time()))    
         return 

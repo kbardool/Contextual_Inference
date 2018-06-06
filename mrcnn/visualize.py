@@ -7,6 +7,7 @@ Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
 
+import math
 import random
 import itertools
 import colorsys
@@ -16,9 +17,11 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.lines as lines
 from   matplotlib.patches import Polygon
+from matplotlib import cm
 import IPython.display
 
 import mrcnn.utils as utils
+from mrcnn.datagen     import load_image_gt    
 
 
 ############################################################
@@ -148,6 +151,79 @@ def display_instances(image, boxes, masks, class_ids, class_names,
             verts = np.fliplr(verts) - 1
             p = Polygon(verts, facecolor="none", edgecolor=color)
             ax.add_patch(p)
+    ax.imshow(masked_image.astype(np.uint8))
+
+##----------------------------------------------------------------------
+## display_instances
+##----------------------------------------------------------------------
+def display_instances_wo_mask(image, boxes, class_ids, class_names,
+                      scores=None, title="",
+                      figsize=(16, 16), ax=None):
+    """
+    boxes:                  [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
+    masks:                  [num_instances, height, width]
+    class_ids:              [num_instances]
+    class_names:            list of class names of the dataset
+    scores:                 (optional) confidence scores for each box
+    figsize:                (optional) the size of the image.
+    """
+    # Number of instances
+    N = boxes.shape[0]
+    if not N:
+        print("\n*** No instances to display *** \n")
+    else:
+        assert boxes.shape[0] == class_ids.shape[0]
+
+    if not ax:
+        _, ax = plt.subplots(1, figsize=figsize)
+
+    # Generate random colors
+    colors = random_colors(N)
+
+    # Show area outside image boundaries.
+    height, width = image.shape[:2]
+    ax.set_ylim(height + 10, -10)
+    ax.set_xlim(-10, width + 10)
+    ax.axis('off')
+    ax.set_title(title)
+    print(image.shape)
+    masked_image = image.astype(np.uint32).copy()
+    for i in range(N):
+        color = colors[i]
+
+        # Bounding box
+        if not np.any(boxes[i]):
+            # Skip this instance. Has no bbox. Likely lost in image cropping.
+            continue
+        y1, x1, y2, x2 = boxes[i]
+        p = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2,
+                              alpha=0.7, linestyle="dashed",
+                              edgecolor=color, facecolor='none')
+        ax.add_patch(p)
+
+        # Label
+        class_id = class_ids[i]
+        score = scores[i] if scores is not None else None
+        label = class_names[class_id]
+        x = random.randint(x1, (x1 + x2) // 2)
+        caption = "{} {:.3f}".format(label, score) if score else label
+        ax.text(x1, y1 + 8, caption,
+                color='w', size=11, backgroundcolor="none")
+
+        # Mask
+        # mask = masks[:, :, i]
+        # masked_image = apply_mask(masked_image, mask, color)
+
+        # Mask Polygon
+        # Pad to ensure proper polygons for masks that touch image edges.
+        # padded_mask = np.zeros((mask.shape[0] + 2, mask.shape[1] + 2), dtype=np.uint8)
+        # padded_mask[1:-1, 1:-1] = mask
+        # contours = find_contours(padded_mask, 0.5)
+        # for verts in contours:
+            # Subtract the padding and flip (y, x) to (x, y)
+            # verts = np.fliplr(verts) - 1
+            # p = Polygon(verts, facecolor="none", edgecolor=color)
+            # ax.add_patch(p)
     ax.imshow(masked_image.astype(np.uint8))
 
 ##----------------------------------------------------------------------
@@ -475,33 +551,352 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 ##----------------------------------------------------------------------
 ## plot_gaussian
 ##----------------------------------------------------------------------    
-def plot_gaussian( Z, title = 'My figure' ):
-    fig = plt.figure()
+    
+def display_gt_bboxes(model_info, input_image_meta, image_idx=0):
+
+    dataset_train = model_info[2]
+    config = model_info[1]
+    image_idx = 0
+    image_id = input_image_meta[image_idx,0]
+    print('Image id: ',image_id)
+    p_original_image, p_image_meta, p_gt_class_id, p_gt_bbox, p_gt_mask =  \
+                load_image_gt(dataset_train, config, image_id, augment=False, use_mini_mask=True)
+    # print(p_gt_class_id.shape, p_gt_bbox.shape, p_gt_mask.shape)
+    print(p_gt_bbox[0:3,:])
+    print(p_gt_class_id)
+    draw_boxes(p_original_image, p_gt_bbox[0:3])    
+    return
+
+
+
+def display_roi_proposals(model_info, input_image_meta, pred_tensor, classes, image_idx = 0) :
+
+    dataset_train = model_info[2]
+    config = model_info[1]
+    image_id = input_image_meta[image_idx,0]
+
+    p_image, p_image_meta, p_gt_class_id, p_gt_bbox, p_gt_mask =  \
+                load_image_gt(dataset_train, config, image_id, augment=False, use_mini_mask=True)
+    print('Image id      : ',image_id)
+    print('Image metadata: ', p_image_meta)
+    for cls in classes:
+        ttl = 'FR-CNN (pred_tensor) refined ROI bounding boxes - img:{} (img_id {}) class id: {} '.format(image_idx,image_id, cls)
+        caps = [str(i)+'-'+str(np.around(x[1],decimals = 3))  for i,x in enumerate(pred_tensor[image_idx,cls,:].tolist()) ]
+        draw_boxes(p_image, pred_tensor[image_idx,cls,:,0:4], captions = caps, title = ttl, width =10)
+    
+    
+
+    
+def plot_gaussian2( Zlist, image_idx, title = 'My figure', width = 7 ):
+    columns     = len(Zlist)
+    num_classes = Zlist[0].shape[-1]
+    rows        = num_classes 
+    height      = rows * width /2 
+    
+    fig = plt.figure(figsize=(width, width))
     fig.suptitle(title, fontsize =12 )
-    ax = fig.gca(projection='3d')
-    fig.set_figheight(5)
+    fig.set_figheight(width-1)
+
     X = np.arange(0, 128, 1)
     Y = np.arange(0, 128, 1)
-    X, Y = np.meshgrid(X, Y)
-    
+    X, Y = np.meshgrid(X, Y)        
     pos = np.empty(X.shape+(2,))   # concatinate shape of x to make ( x.rows, x.cols, 2)
     pos[:,:,0] = X;
     pos[:,:,1] = Y;
-    surf = ax.plot_surface(X, Y, Z,cmap=cm.coolwarm, linewidth=0, antialiased=False)
+
+    for cls in range(num_classes):
     
-    # # Customize the z axis.
-    ax.set_zlim(0.0 , 0.05)
+        for col  in range(2):
+            subplot = (cls * columns) + col + 1
+            ttl = 'Heatmap {} - image :  {} class: {} '.format(col+1, image_idx,cls)
+            # plt.subplot(rows, columns, col+1)
+            # ax = fig.gca(projection='3d')
+            ax = fig.add_subplot(rows, columns, subplot, projection='3d')
+            ax.set_title(ttl)
+            ax.set_zlim(0.0 , 1.05)
+            ax.set_ylim(0,130)
+            ax.set_xlim(0,130)
+            ax.set_xlabel(' X axis')
+            ax.set_ylabel(' Y axis')
+            ax.invert_yaxis()
+            # ax.view_init( azim=-110,elev=60)            
+            ax.view_init(azim=-37, elev=43)            
+            surf = ax.plot_surface(X, Y, Zlist[col][image_idx,:,:,cls],cmap=cm.coolwarm, linewidth=0, antialiased=False)
+            # # Customize the z axis.
+            # plt.plot()
+            # ax.zaxis.set_major_locator(LinearLocator(10))
+            # ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+
+            # Add a color bar which maps values to colors.
+   
+    # fig.colorbar(surf, shrink=0.5, aspect=5)
+    
+    plt.show()
+    
+
+        
+##----------------------------------------------------------------------
+## plot one gauss_scatter for one instance
+##----------------------------------------------------------------------        
+def plot_one_bbox_heatmap( Z, boxes, title = 'My figure', width = 7, height =12 ):
+    N = boxes.shape[0]
+    colors = random_colors(N)
+
+    style = "dotted"
+    alpha = 1
+    color = colors[0]
+    
+    fig = plt.figure(figsize=(width, height))
+    fig.suptitle(title, fontsize =12 )
+    ax = fig.gca()
+    fig.set_figheight(width-1)
+    # surf = ax.plot_surface(X, Y, Z,cmap=cm.coolwarm, linewidth=0, antialiased=False)
+    cax  = ax.matshow(Z, cmap=cm.coolwarm )
+    cbar = fig.colorbar(cax, ticks=[ 0, 0.5, 1])
+    cbar.ax.set_yticklabels(['< 0', '0.5', '> 1'])  # vertically oriented colorbar    
+    
+    y1, x1, y2, x2 = boxes[:4]
+    p = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=1,
+              alpha=alpha, linestyle=style,
+              edgecolor=color, facecolor='none')
+    ax.add_patch(p)
     ax.set_ylim(0,130)
     ax.set_xlim(0,130)
     ax.set_xlabel(' X axis')
     ax.set_ylabel(' Y axis')
-    ax.invert_yaxis()
-    ax.view_init(elev=140, azim=-88)
-    # ax.zaxis.set_major_locator(LinearLocator(10))
-    # ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+    ax.invert_yaxis()    
+    plt.show()
 
-    # Add a color bar which maps values to colors.
-    fig.colorbar(surf, shrink=0.5, aspect=5)
     
+##----------------------------------------------------------------------
+## plot 2d heatmaps form gauss_scatter with bouding boxes for one image (all classes)
+##----------------------------------------------------------------------     
+def plot_bbox_heatmaps( Z, boxes, title = 'My figure', width = 7, height= 10, columns = 4, num_bboxes=0 ):
+    print('shape of z', Z.shape, 'shape of boxes', boxes.shape)
+    num_classes = Z.shape[0]
+
+    if num_bboxes == 0 :
+        num_bboxes  = Z.shape[1]
+    
+    rows   = math.ceil(num_bboxes/columns)
+    height = math.ceil((width / columns) * rows )
+    print('Number of classes is :', num_classes, 'num_boxes:', num_bboxes, 'rows :', rows, 'columns: ', columns)
+    colors = random_colors(num_classes)
+    style = "dotted"
+    alpha = 1
+
+    x1    = boxes[:,:,1]
+    x2    = boxes[:,:,3]
+    y1    = boxes[:,:,0]
+    y2    = boxes[:,:,2]
+    box_w = x2 - x1   # x2 - x1
+    box_h = y2 - y1 
+    cx    = (x1 + ( box_w / 2.0)).astype(int)
+    cy    = (y1 + ( box_h / 2.0)).astype(int)
+
+
+    for cls in range(num_classes):
+        fig = plt.figure(figsize=(width, height))  #width , height
+        color = colors[cls]
+        for bbox in range(num_bboxes):
+            row = bbox // columns
+            col = bbox % columns
+            # print('bbox:',bbox, 'row:', row,'col:', col)
+            ttl = 'Cls:{:2d} BB{:2d}  r/c:{:1d}/{:1d}  - {:4d}/{:4d} '.format( cls,bbox, row,col, cx[cls,bbox], cy[cls,bbox])
+            ax = fig.add_subplot(rows, columns, bbox+1)
+            ax.set_title(ttl, fontsize=11)
+            ax.tick_params(axis='both', labelsize = 5)
+            ax.set_ylim(0,130)
+            ax.set_xlim(0,130)
+            ax.set_xlabel(' X axis', fontsize=6)
+            ax.set_ylabel(' Y axis', fontsize=6)
+            ax.invert_yaxis()
+            ax.matshow(Z[cls,bbox])
+            
+            # print(ttl,x1[cls,bbox], y1[cls,bbox],x2[cls,bbox],y2[cls,bbox])
+            p = patches.Rectangle( (x1[cls,bbox],y1[cls,bbox]), box_w[cls,bbox], box_h[cls,bbox], 
+                                   linewidth=1, alpha=alpha, linestyle=style, edgecolor=color, facecolor='none')
+            ax.add_patch(p)
+        fig_title = 'class: {:2d} - {:2d} boxes '.format(cls, num_bboxes)
+        fig.suptitle(fig_title, fontsize =16 )
+        plt.subplots_adjust(top=0.90, bottom=0.02, left=0.02, right=0.98, hspace=0.10, wspace=0.10)                
+        # plt.tight_layout()
+        plt.show()
+    # plt.savefig('sample.png')
+    
+    # plt.close()
+    return
+
+
+##----------------------------------------------------------------------
+## plot 2d heatmap for all image (all classes) in batch set
+##----------------------------------------------------------------------           
+def plot_2d_heatmaps( Z, boxes, title = 'My figure', width = 7, columns = 4, num_bboxes=0 ):
+    Z = np.transpose(Z, [0,3,1,2])
+    num_images  = Z.shape[0]
+    num_classes = Z.shape[1]    
+    if num_bboxes == 0 :
+        num_bboxes  = boxes.shape[2]  
+    # print('shape of z', Z.shape, 'shape of boxes', boxes.shape)
+    # print('Number of Images: ', num_images, 'classes:', num_classes, ' ===> rows :', rows, 'columns: ', columns)
+    
+    rows   = math.ceil(num_classes/columns)
+    height = math.ceil((width / columns) * rows )
+    colors = random_colors(num_classes)
+    style = "dotted"
+    alpha = 1
+
+    x1    = boxes[:,:,:,1]
+    x2    = boxes[:,:,:,3]
+    y1    = boxes[:,:,:,0]
+    y2    = boxes[:,:,:,2]
+    box_w = x2 - x1   # x2 - x1
+    box_h = y2 - y1 
+    cx    = (x1 + ( box_w / 2.0)).astype(int)
+    cy    = (y1 + ( box_h / 2.0)).astype(int)
+
+    for img in range(num_images):
+        fig = plt.figure(figsize=(width, height))  #width , height
+        for cls in range(num_classes):
+
+            color = colors[cls]
+            row = cls // columns
+            col = cls  % columns
+            # print('Image: ', img, 'class:', cls, 'row:', row,'col:', col)
+            ttl = 'Cls:{:2d}  r/c:{:1d}/{:1d}  '.format( cls, row,col)
+            ax = fig.add_subplot(rows, columns, cls+1)
+            ax.set_title(ttl, fontsize=11)
+            ax.tick_params(axis='both', labelsize = 5)
+            ax.set_ylim(0,130)
+            ax.set_xlim(0,130)
+            ax.set_xlabel(' X axis', fontsize=6)
+            ax.set_ylabel(' Y axis', fontsize=6)
+            ax.invert_yaxis()
+            ax.matshow(Z[img, cls])
+            for bbox in range(num_bboxes):
+                # print(ttl,x1[cls,bbox], y1[cls,bbox],x2[cls,bbox],y2[cls,bbox])
+                p = patches.Rectangle( (x1[img,cls,bbox],y1[img,cls,bbox]), box_w[img,cls,bbox], box_h[img,cls,bbox], 
+                                       linewidth=1, alpha=alpha, linestyle=style, edgecolor=color, facecolor='none')
+                ax.add_patch(p)
+        fig_title = 'Image : {:2d} '.format(img+1)
+        fig.suptitle(fig_title, fontsize =16 )
+        plt.subplots_adjust(top=0.90, bottom=0.02, left=0.02, right=0.98, hspace=0.10, wspace=0.10)                
+        # plt.tight_layout()
+        plt.show()
+    # plt.savefig('sample.png')
+    
+    # plt.close()
+    return    
+    
+    
+##----------------------------------------------------------------------
+## plot 3d heatmap for one image (all classes)
+##----------------------------------------------------------------------    
+def plot_3d_heatmap( Z, width = 7, columns =4, title = None):
+    Z = np.transpose(Z, [2,0,1])
+    print('shape of z', Z.shape )
+    num_classes = Z.shape[0]    
+
+    X = np.arange(0, 128, 1)
+    Y = np.arange(0, 128, 1)
+    X, Y = np.meshgrid(X, Y)
+    print(X.shape, Y.shape)
+    pos = np.empty(X.shape+(2,))   # concatinate shape of x to make ( x.rows, x.cols, 2)
+    pos[:,:,0] = X;
+    pos[:,:,1] = Y;
+    
+    # ax = fig.gca(projection='3d')
+    # fig.set_figheight(width-1)
+    rows   = math.ceil(num_classes/columns)
+    height = math.ceil((width / columns) * rows )
+
+    fig = plt.figure(figsize=(width, height))  #width , height
+    for cls in range(num_classes):
+        row = cls // columns
+        col = cls  % columns
+        print( 'class:', cls, 'row:', row,'col:', col)
+        ttl = 'Cls:{:2d}  r/c:{:1d}/{:1d}  '.format( cls, row,col)
+        ax = fig.add_subplot(rows, columns, cls+1, projection='3d')
+        ax.set_title(ttl, fontsize=11)
+        ax.tick_params(axis='both', labelsize = 5)
+        ax.set_zlim(0.0 , 1.1)
+        ax.set_ylim(0,130)
+        ax.set_xlim(0,130)
+        ax.set_xlabel(' X axis', fontsize=8)
+        ax.set_ylabel(' Y axis', fontsize=8)
+        ax.invert_yaxis()
+        # ax.view_init( azim=-110,elev=60)            
+        surf = ax.plot_surface(X, Y, Z[cls],cmap=cm.viridis, linewidth=0, antialiased=False)
+        ax.view_init(azim=-37, elev=43)     
+    if title is None:
+        title = '<Image Heatmap>'
+        
+    plt.subplots_adjust(top=0.90, bottom=0.02, left=0.02, right=0.98, hspace=0.10, wspace=0.10)                
+    fig.suptitle(title, fontsize =16 )
+    # Add a color bar which maps values to colors.
+    fig.colorbar(surf, shrink=2, aspect=20, fraction=0.05)
     plt.show()
     # plt.savefig('sample.png')
+    return    
+
+    
+##----------------------------------------------------------------------
+## plot 2d heatmap for one image (all classes)
+##----------------------------------------------------------------------        
+def plot_2d_heatmap( Z, boxes,  width = 7, columns =4, num_bboxes = 0, title = None):
+    Z = np.transpose(Z, [2,0,1])
+    num_classes = Z.shape[0]    
+    if num_bboxes == 0 :
+        num_bboxes  = boxes.shape[1]  
+    colors = random_colors(num_classes)
+
+    rows   = math.ceil(num_classes/columns)
+    height = math.ceil((width / columns) * rows )
+    style = "dotted"
+    alpha = 1
+    color = colors[0]
+
+    x1    = boxes[:,:,1]
+    x2    = boxes[:,:,3]
+    y1    = boxes[:,:,0]
+    y2    = boxes[:,:,2]
+    box_w = x2 - x1   # x2 - x1
+    box_h = y2 - y1 
+    cx    = (x1 + ( box_w / 2.0)).astype(int)
+    cy    = (y1 + ( box_h / 2.0)).astype(int)
+    
+    fig = plt.figure(figsize=(width, height))  #width , height
+    for cls in range(num_classes):
+        color = colors[cls]
+        row = cls // columns
+        col = cls  % columns
+        # print('Image: ', img, 'class:', cls, 'row:', row,'col:', col)
+        ttl = 'Cls:{:2d}  r/c:{:1d}/{:1d}  '.format( cls, row,col)
+        ax = fig.add_subplot(rows, columns, cls+1)
+        ax.set_title(ttl, fontsize=11)
+        ax.tick_params(axis='both', labelsize = 5)
+        ax.set_ylim(0,130)
+        ax.set_xlim(0,130)
+        ax.set_xlabel(' X axis', fontsize=8)
+        ax.set_ylabel(' Y axis', fontsize=8)
+        ax.invert_yaxis()
+        surf = ax.matshow(Z[cls], cmap = cm.coolwarm)
+        for bbox in range(num_bboxes):
+            # print(boxes[cls,bbox])
+            # print(ttl,x1[cls,bbox], y1[cls,bbox],x2[cls,bbox],y2[cls,bbox])
+            p = patches.Rectangle( (x1[cls,bbox],y1[cls,bbox]), box_w[cls,bbox], box_h[cls,bbox], 
+                                   linewidth=1, alpha=alpha, linestyle=style, edgecolor=color, facecolor='none')
+            ax.add_patch(p)
+    if title is None:
+        title = '<Image Heatmap>'
+    plt.subplots_adjust(top=0.90, bottom=0.02, left=0.02, right=0.98, hspace=0.10, wspace=0.10)      
+    fig.suptitle(title, fontsize =16 )
+    fig.colorbar(surf, shrink=2.5, aspect=20, fraction=0.05)
+
+          
+    # plt.tight_layout()
+    plt.show()
+    # plt.savefig('sample.png')
+    
+    return    
+        

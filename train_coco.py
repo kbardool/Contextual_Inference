@@ -63,26 +63,33 @@ pp = pp.PrettyPrinter(indent=4)
 # MODEL_DIR    :    Directory to save logs and trained model
 # COCO_MODEL_PATH  : Path to COCO trained weights
 #---------------------------------------------------------------------------------
-
-# WINDOWS MACHINE ------------------------------------------------------------------
-ROOT_DIR          = 'E:/'
-MODEL_PATH        = os.path.join(ROOT_DIR, "models")
-DATASET_PATH      = os.path.join(ROOT_DIR, 'MLDatasets')
-#### MODEL_DIR    = os.path.join(MODEL_PATH, "mrcnn_logs")
-COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
-DEFAULT_LOGS_DIR  = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
-COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
-
-# RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
-
-# LINUX MACHINE ------------------------------------------------------------------
-# ROOT_DIR          = os.getcwd()
-# MODEL_PATH        = os.path.expanduser('~/models')
-# DATASET_PATH      = os.path.expanduser('~/MLDatasets')
-#### MODEL_DIR           = os.path.join(MODEL_PATH, "mrcnn_logs")
-# COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
-# COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
-# DEFAULT_LOGS_DIR = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
+import platform
+syst = platform.system()
+if syst == 'Windows':
+    # Root directory of the project
+    print(' windows ' , syst)
+    # WINDOWS MACHINE ------------------------------------------------------------------
+    ROOT_DIR          = "E:\\"
+    MODEL_PATH        = os.path.join(ROOT_DIR, "models")
+    DATASET_PATH      = os.path.join(ROOT_DIR, 'MLDatasets')
+    MODEL_DIR         = os.path.join(MODEL_PATH, args.logs_dir)
+    COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
+    DEFAULT_LOGS_DIR  = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
+    COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
+    RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
+elif syst == 'Linux':
+    print(' Linx ' , syst)
+    # LINUX MACHINE ------------------------------------------------------------------
+    ROOT_DIR          = os.getcwd()
+    MODEL_PATH        = os.path.expanduser('~/models')
+    DATASET_PATH      = os.path.expanduser('~/MLDatasets')
+    MODEL_DIR         = os.path.join(MODEL_PATH, args.logs_dir)
+    COCO_MODEL_PATH   = os.path.join(MODEL_PATH, "mask_rcnn_coco.h5")
+    COCO_DATASET_PATH = os.path.join(DATASET_PATH,"coco2014")
+    DEFAULT_LOGS_DIR  = os.path.join(MODEL_PATH, "mrcnn_coco_logs")
+    RESNET_MODEL_PATH = os.path.join(MODEL_PATH, "resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5")
+else :
+    raise Error('unreconized system  '      )
 
 
 print(COCO_MODEL_PATH)

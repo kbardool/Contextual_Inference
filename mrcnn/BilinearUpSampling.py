@@ -23,7 +23,7 @@ def resize_images_bilinear(X, height_factor=1, width_factor=1, target_height=Non
             new_shape *= tf.constant(np.array([height_factor, width_factor]).astype('int32'))
         
         X = permute_dimensions(X, [0, 2, 3, 1])
-        X = tf.image.resize_bilinear(X, new_shape)
+        X = tf.image.resize_bilinear(X, new_shape, name='fcn_heatmap_channels_first')
         X = permute_dimensions(X, [0, 3, 1, 2])
     
         if target_height and target_width:
@@ -47,7 +47,7 @@ def resize_images_bilinear(X, height_factor=1, width_factor=1, target_height=Non
             new_shape *= tf.constant(np.array([height_factor, width_factor]).astype('int32'))
             print('     new_shape (3): ' , new_shape.get_shape(), new_shape.shape)                        
         
-        X = tf.image.resize_bilinear(X, new_shape)
+        X = tf.image.resize_bilinear(X, new_shape, name = 'fcn_heatmap_channels_last')
         print('     X after image.resize_bilinear: ' , X.get_shape())            
         
         if target_height and target_width:
@@ -103,7 +103,7 @@ class BilinearUpSampling2D(Layer):
         super().__init__(**kwargs)
 
     def compute_output_shape(self, input_shape):
-        print('    BilinearUpSampling2D. compute_output_shape()' )    
+        print('     BilinearUpSampling2D. compute_output_shape()' )    
         if self.data_format == 'channels_first':
             width = int(self.size[0] * input_shape[2] if input_shape[2] is not None else None)
             height = int(self.size[1] * input_shape[3] if input_shape[3] is not None else None)
@@ -120,6 +120,7 @@ class BilinearUpSampling2D(Layer):
             if self.target_size is not None:
                 width  = self.target_size[0]
                 height = self.target_size[1]
+            print('     Bilinear output shape is:', input_shape[0],',',width,',',height,',',input_shape[3])
             return (input_shape[0],
                     width,
                     height,

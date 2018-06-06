@@ -28,14 +28,35 @@ from   mrcnn.batchnorm_layer import BatchNorm
 
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 
- 
+def normalize(x):
+    #--------------------------------------------------------------------------------------------
+    # this normalization moves values to [0  +1] 
+    #--------------------------------------------------------------------------------------------    
+
+    # x   = x / tf.reduce_max(x, axis=[1,2], keepdims = True)
+    # x   = tf.where(tf.is_nan(x),  tf.zeros_like(x), x, name = 'fcn_heatmap_norm')
+
+    #--------------------------------------------------------------------------------------------
+    # this normalization moves values to [-1 +1] 
+    #--------------------------------------------------------------------------------------------    
+    reduce_max = tf.reduce_max(x, axis = [1,2], keepdims=True)
+    reduce_min = tf.reduce_min(x, axis = [1,2], keepdims=True)  ## epsilon    = tf.ones_like(reduce_max) * 1e-7
+    print('     size of reduce max is ', reduce_max.shape)
+    y  = tf.divide( (x- reduce_min) , (reduce_max - reduce_min), name='fcn_heatmap_norm')
+    print('     size of y is : ', y.shape)
+
+
+
+
+    return y
+
     
 ###############################################################
 # Fully Convolutional Network Layer 
 ###############################################################
 
 # def fcn_layer(context_tensor, num_classes,weight_decay=0., batch_momentum=0.9):
-def fcn_graph( feature_map , config , weight_decay=0., batch_momentum=0.9):
+def fcn_graph( feature_map , config , weight_decay=0.01, batch_momentum=0.9):
     '''Builds the computation graph of Region Proposal Network.
 
     feature_map:            Contextual Tensor [batch, num_classes, width, depth]
@@ -67,15 +88,14 @@ def fcn_graph( feature_map , config , weight_decay=0., batch_momentum=0.9):
         # img_input = Input(shape=input_shape)
         # image_size = input_shape[0:2]
     
+    ## , kernel_regularizer=l2(weight_decay)
     
     # Block 1    data_format='channels_last',
-    x = KL.Conv2D(64, (3, 3), 
-         activation='relu', padding='same', name='fcn_block1_conv1', 
-         kernel_regularizer=l2(weight_decay))(feature_map)
+    
+    x = KL.Conv2D(64, (3, 3), activation='relu', padding='same', name='fcn_block1_conv1')(feature_map)
     print('   FCN Block 11 shape is : ' ,x.get_shape())
     
-    x  = KL.Conv2D(64, (3, 3), activation='relu', padding='same', name='fcn_block1_conv2', 
-         kernel_regularizer=l2(weight_decay))(x)
+    x = KL.Conv2D(64, (3, 3), activation='relu', padding='same', name='fcn_block1_conv2')(x)
     print('   FCN Block 12 shape is : ' ,x.get_shape())         
     
     x = KL.MaxPooling2D((2, 2), strides=(2, 2), name='fcn_block1_pool')(x)
@@ -83,12 +103,10 @@ def fcn_graph( feature_map , config , weight_decay=0., batch_momentum=0.9):
     x0 = x
     
     # Block 2
-    x = KL.Conv2D(128, (3, 3), activation='relu', padding='same', 
-        name='fcn_block2_conv1', kernel_regularizer=l2(weight_decay))(x)
+    x = KL.Conv2D(128, (3, 3), activation='relu', padding='same', name='fcn_block2_conv1')(x)
     print('   FCN Block 21 shape is : ' , x.get_shape())
     
-    x = KL.Conv2D(128, (3, 3), activation='relu', padding='same', 
-        name='fcn_block2_conv2', kernel_regularizer=l2(weight_decay))(x)
+    x = KL.Conv2D(128, (3, 3), activation='relu', padding='same', name='fcn_block2_conv2')(x)
     print('   FCN Block 22 shape is : ' ,x.get_shape())    
     
     x = KL.MaxPooling2D((2, 2), strides=(2, 2), name='fcn_block2_pool')(x)
@@ -96,16 +114,13 @@ def fcn_graph( feature_map , config , weight_decay=0., batch_momentum=0.9):
     x1 = x
     
     # Block 3
-    x = KL.Conv2D(256, (3, 3), activation='relu', padding='same', 
-        name='fcn_block3_conv1', kernel_regularizer=l2(weight_decay))(x)
+    x = KL.Conv2D(256, (3, 3), activation='relu', padding='same', name='fcn_block3_conv1')(x)
     print('   FCN Block 31 shape is : ' ,x.get_shape())            
     
-    x = KL.Conv2D(256, (3, 3), activation='relu', padding='same', 
-        name='fcn_block3_conv2', kernel_regularizer=l2(weight_decay))(x)
+    x = KL.Conv2D(256, (3, 3), activation='relu', padding='same', name='fcn_block3_conv2')(x)
     print('   FCN Block 32 shape is : ' ,x.get_shape())    
     
-    x = KL.Conv2D(256, (3, 3), activation='relu', padding='same', 
-        name='fcn_block3_conv3', kernel_regularizer=l2(weight_decay))(x)
+    x = KL.Conv2D(256, (3, 3), activation='relu', padding='same', name='fcn_block3_conv3')(x)
     print('   FCN Block 33 shape is : ' ,x.get_shape())            
     
     x = KL.MaxPooling2D((2, 2), strides=(2, 2), name='fcn_block3_pool')(x)
@@ -128,51 +143,50 @@ def fcn_graph( feature_map , config , weight_decay=0., batch_momentum=0.9):
     # changed ftom 2048 to 1024 - 11-05-2018
     
     FC_SIZE = 1024 
-    x = KL.Conv2D(FC_SIZE, (7, 7), activation='relu', padding='same', name='fcn_fc1', kernel_regularizer=l2(weight_decay))(x)
+    x = KL.Conv2D(FC_SIZE, (7, 7), activation='relu', padding='same', name='fcn_fc1')(x)
     print('   FCN fully connected 1 (fcn_fc1) shape is : ' ,x.get_shape())        
     x = KL.Dropout(0.5)(x)
-    x = KL.Conv2D(FC_SIZE, (1, 1), activation='relu', padding='same', name='fcn_fc2', kernel_regularizer=l2(weight_decay))(x)
+    x = KL.Conv2D(FC_SIZE, (1, 1), activation='relu', padding='same', name='fcn_fc2')(x)
     print('   FCN fully connected 2 (fcn_fc2) shape is : ' ,x.get_shape())        
     x = KL.Dropout(0.5)(x)
     
     #classifying layer
     x = KL.Conv2D(num_classes, (1, 1), kernel_initializer='he_normal', 
                   activation='linear', padding='valid', strides=(1, 1),
-                  kernel_regularizer=l2(weight_decay), name='fcn_classify')(x)
-    fcn_classify_shape = KB.int_shape(x)
+                  name='fcn_classify')(x)
+
     
-    print('   FCN final conv2d (fcn_classify) shape is : ' , fcn_classify_shape )                      
-    x2 = x
+    print('   FCN final conv2d (fcn_classify) shape is : ' , x.get_shape(),' keras_tensor ', KB.is_keras_tensor(x))                      
+    
+    fcn_classify_shape = KB.int_shape(x)
     h_factor = height / fcn_classify_shape[1]
     w_factor = height / fcn_classify_shape[2]
     print('   h_factor : ', h_factor, 'w_factor : ', w_factor)
     
-    fcn_heatmap = BilinearUpSampling2D(size=(h_factor, w_factor), name='fcn_heatmap')(x)
-    # print('   FCN Bilinear upsmapling layer  shape is : ' , x.get_shape(), 'Keras tensor ', KB.is_keras_tensor(x) )
+    x = BilinearUpSampling2D(size=(h_factor, w_factor), name='fcn_bilinear')(x)
+    print('   FCN Bilinear upsmapling layer  shape is : ' , x.get_shape(), ' Keras tensor ', KB.is_keras_tensor(x) )
     
-    # heatmap  = KL.Lambda(lambda x: tf.transpose(x,[0,3,1,2]), name="fcn_heatmap") (x)
-    # heatmap = KB.identity(tf.transpose( x,[0,3,1,2]), name = 'fcn_heatmap')
-    print('   FCN heatmap (fcn_heatmap) shape is : ' , fcn_heatmap.get_shape(), 'Keras tensor ', KB.is_keras_tensor(fcn_heatmap) )
+    
+    ##---------------------------------------------------------------------------------------------
+    ## heatmap L2 normalization
+    ## Normalization using the  `gauss_sum` (batchsize , num_classes, height, width) 
+    ## 17-05-2018 (New method, replace dthe previous method that usedthe transposed gauss sum
+    ## 17-05-2018 Replaced with normalization across the CLASS axis 
+    ##                         normalize along the CLASS axis 
+    ##---------------------------------------------------------------------------------------------
+    fcn_hm = KL.Lambda(lambda z: tf.identity(z, name="fcn_heatmap"), name="fcn_heatmap") (x)
+
     print()
-##---------------------------------------------------------------------------------------------------------------------------
-## To normalize or to not normalize....?
-##---------------------------------------------------------------------------------------------------------------------------
-    
-    # print('\n    L2 normalization ------------------------------------------------------')   
-    # heatmap_shape=KB.int_shape(heatmap)
-    # print(' heatmap shape is :' , heatmap_shape, '   ', heatmap.get_shape(), heatmap.shape, tf.shape(heatmap).eval())
-    
-    # heatmap_flat = tf.reshape(heatmap, [heatmap.shape[0], -1, heatmap.shape[-1]] )
-    # print('   heatmap_flatten shape is : ', KB.int_shape(heatmap_flat), ' Keras tensor ', KB.is_keras_tensor(heatmap_flat) )
-    
-    # heatmap_norm = KB.l2_normalize(heatmap_flat, axis = 1)    
-    # print('   heatmap_norm    shape is : ', KB.int_shape(heatmap_norm), ' Keras tensor ', KB.is_keras_tensor(heatmap_norm) )
+    print('\n    L2 normalization ------------------------------------------------------')   
+    fcn_hm_L2norm = KL.Lambda(lambda z: tf.nn.l2_normalize(z, axis = 3, name = 'fcn_heatmap_L2norm'),\
+                        name = 'fcn_heatmap_L2norm')(x)
 
-    # heatmap_norm = KB.reshape(heatmap,  heatmap.shape )
-    # print('   heatmap_norm final   shape is : ', KB.int_shape(heatmap_norm), ' Keras tensor ', KB.is_keras_tensor(heatmap_norm) )
-##---------------------------------------------------------------------------------------------------------------------------
-##
-##---------------------------------------------------------------------------------------------------------------------------
+    print('\n    normalization ------------------------------------------------------')   
+    fcn_hm_norm   = KL.Lambda(normalize, name="fcn_heatmap_norm") (x)
 
-    return fcn_heatmap
+    print('    fcn_heatmap       : ', fcn_hm.shape        ,' Keras tensor ', KB.is_keras_tensor(fcn_hm) )
+    print('    fcn_heatmap_norm  : ', fcn_hm_norm.shape   ,' Keras tensor ', KB.is_keras_tensor(fcn_hm_norm) )
+    print('    fcn_heatmap_L2norm: ', fcn_hm_L2norm.shape ,' Keras tensor ', KB.is_keras_tensor(fcn_hm_L2norm) )
+
+    return fcn_hm_norm, fcn_hm, fcn_hm_L2norm
 

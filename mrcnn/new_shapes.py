@@ -480,12 +480,12 @@ class NewShapesDataset(Dataset):
         hidden_shape_ixs = self.find_hidden_shapes(shapes, height, width)    
         if len(hidden_shape_ixs) > 0: 
             non_hidden_shapes = [s for i, s in enumerate(shapes) if i not in hidden_shape_ixs]
-            print('    ===> Image Id : (',image_id, ')   ---- Zero Mask Encountered ') 
-            print('    ------ Original Shapes ------' )
-            p8.pprint(shapes)
-            print('    ------ shapes after removal of totally hidden shapes ------' )
-            p8.pprint(non_hidden_shapes)
-            print('    Number of shapes now is : ', len(non_hidden_shapes))
+            # print('    ===> Image Id : (',image_id, ')   ---- Zero Mask Encountered ') 
+            # print('    ------ Original Shapes ------' )
+            # p8.pprint(shapes)
+            # print('    ------ shapes after removal of totally hidden shapes ------' )
+            # p8.pprint(non_hidden_shapes)
+            # print('    Number of shapes now is : ', len(non_hidden_shapes))
         else: 
             non_hidden_shapes = shapes
 

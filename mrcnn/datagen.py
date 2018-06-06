@@ -98,11 +98,10 @@ def load_image_gt(dataset, config, image_id, augment=False,
         # print(np.array2string(np.where(mask[:,:,i],1,0),max_line_width=134, separator = ''))
     
     shape = image.shape
-    image, window, scale, padding = utils.resize_image(
-        image,
-        min_dim=config.IMAGE_MIN_DIM,
-        max_dim=config.IMAGE_MAX_DIM,
-        padding=config.IMAGE_PADDING)
+    image, window, scale, padding = utils.resize_image(image,
+                                                       min_dim=config.IMAGE_MIN_DIM,
+                                                       max_dim=config.IMAGE_MAX_DIM,
+                                                       padding=config.IMAGE_PADDING)
     mask = utils.resize_mask(mask, scale, padding)
 
     # print('after resize_mask shape is :',mask.shape)
