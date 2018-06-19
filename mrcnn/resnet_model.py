@@ -140,19 +140,20 @@ def resnet_graph(input_image, architecture, stage5=False):
     x = KL.Activation('relu')(x)
     
     C1 = x = KL.MaxPooling2D((3, 3), strides=(2, 2), padding="same")(x)
-    print('     After MaxPooling2D   :', C1.get_shape(), C1.shape)
+    print('     C1 Shape:', C1.get_shape(), C1.shape)
     
     # Stage 2
     #   conv block , kernel size: 3, filters: [64, 64, 256]
     x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1))
     x = identity_block(x, 3, [64, 64, 256], stage=2, block='b')
     C2 = x = identity_block(x, 3, [64, 64, 256], stage=2, block='c')
-    
+    print('     C2 Shape: ', C2.get_shape(), C2.shape)
     # Stage 3
     x = conv_block(x, 3, [128, 128, 512], stage=3, block='a')
     x = identity_block(x, 3, [128, 128, 512], stage=3, block='b')
     x = identity_block(x, 3, [128, 128, 512], stage=3, block='c')
     C3 = x = identity_block(x, 3, [128, 128, 512], stage=3, block='d')
+    print('     C3 Shape: ', C3.get_shape(), C3.shape)
     
     # Stage 4
     x = conv_block(x, 3, [256, 256, 1024], stage=4, block='a')
@@ -160,6 +161,7 @@ def resnet_graph(input_image, architecture, stage5=False):
     for i in range(block_count):
         x = identity_block(x, 3, [256, 256, 1024], stage=4, block=chr(98 + i))
     C4 = x
+    print('     C4 Shape: ', C4.get_shape(), C4.shape)
     
     # Stage 5
     if stage5:
@@ -168,6 +170,6 @@ def resnet_graph(input_image, architecture, stage5=False):
         C5 = x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c')
     else:
         C5 = None
-    
+    print('     C5 Shape: ', C5.get_shape(), C5.shape)    
     return [C1, C2, C3, C4, C5]
 

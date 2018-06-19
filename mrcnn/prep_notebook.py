@@ -52,67 +52,26 @@ else :
     raise Error('unreconized system  '      )
 
 
-
 print("Tensorflow Version: {}   Keras Version : {} ".format(tf.__version__,keras.__version__))
 import pprint
 pp = pprint.PrettyPrinter(indent=2, width=100)
 np.set_printoptions(linewidth=100,precision=4,threshold=1000, suppress = True)
 
-def build_config(batch_sz = 5, newshapes = False):
-    if newshapes:
-        import mrcnn.new_shapes as shapes
-    else:
-        import mrcnn.shapes    as shapes
-        
+
+    
+##------------------------------------------------------------------------------------    
+## Old Shapes TRAINING
+##------------------------------------------------------------------------------------   
+def prep_oldshapes_train(init_with = None, FCN_layers = False, batch_sz = 5, epoch_steps = 4, folder_name= "mrcnn_oldshape_training_logs"):
+    import mrcnn.shapes    as shapes
+    MODEL_DIR = os.path.join(MODEL_PATH, folder_name)
+
     # Build configuration object -----------------------------------------------
     config = shapes.ShapesConfig()
     config.BATCH_SIZE      = batch_sz                  # Batch size is 2 (# GPUs * images/GPU).
     config.IMAGES_PER_GPU  = batch_sz                  # Must match BATCH_SIZE
-    config.STEPS_PER_EPOCH = 4
+    config.STEPS_PER_EPOCH = epoch_steps
     config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
-
-    return config
-    
-def prep_oldshapes_dev(init_with = None, FCN_layers = False, batch_sz = 5):
-    import mrcnn.shapes    as shapes
-    MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_oldshape_dev_logs")
-
-    config = build_config(batch_sz = batch_sz)
-
-    dataset_train = shapes.ShapesDataset()
-    dataset_train.load_shapes(150, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
-    dataset_train.prepare()
-     
-    try :
-        del model
-        print('delete model is successful')
-        gc.collect()
-    except: 
-        pass
-    KB.clear_session()
-    model = modellib.MaskRCNN(mode="training", config=config, model_dir=MODEL_DIR, FCN_layers = FCN_layers)
-
-    print(' COCO Model Path       : ', COCO_MODEL_PATH)
-    print(' Checkpoint folder Path: ', MODEL_DIR)
-    print(' Model Parent Path     : ', MODEL_PATH)
-    print(' Resent Model Path     : ', RESNET_MODEL_PATH)
-
-    load_model(model, init_with = init_with)
-
-    train_generator = data_generator(dataset_train, model.config, shuffle=True,
-                                 batch_size=model.config.BATCH_SIZE,
-                                 augment = False)    
-    model.config.display()
-
-    return [model, dataset_train, train_generator, config]
-    
-
-    
-def prep_oldshapes_train(init_with = None, FCN_layers = False, batch_sz = 5):
-    import mrcnn.shapes    as shapes
-    MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_oldshape_train_logs")
-
-    config = build_config(batch_sz = batch_sz)
 
     # Build shape dataset        -----------------------------------------------
     dataset_train = shapes.ShapesDataset()
@@ -148,14 +107,22 @@ def prep_oldshapes_train(init_with = None, FCN_layers = False, batch_sz = 5):
                                     augment=False)                                 
     model.config.display()     
     return [model, dataset_train, dataset_val, train_generator, val_generator, config]                                 
-    
 
-def prep_oldshapes_test(init_with = None, FCN_layers = False, batch_sz = 5):
+##------------------------------------------------------------------------------------    
+## Old Shapes TESTING
+##------------------------------------------------------------------------------------    
+    
+def prep_oldshapes_test(init_with = None, FCN_layers = False, batch_sz = 5, epoch_steps = 4, folder_name= "mrcnn_oldshape_test_logs"):
     import mrcnn.shapes as shapes
-    MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_oldshape_test_logs")
+    MODEL_DIR = os.path.join(MODEL_PATH, folder_name)
     # MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_development_logs")
 
-    config = build_config(batch_sz = batch_sz)
+    # Build configuration object -----------------------------------------------
+    config = shapes.ShapesConfig()
+    config.BATCH_SIZE      = batch_sz                  # Batch size is 2 (# GPUs * images/GPU).
+    config.IMAGES_PER_GPU  = batch_sz                  # Must match BATCH_SIZE
+    config.STEPS_PER_EPOCH = epoch_steps
+    config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
 
     # Build shape dataset        -----------------------------------------------
     dataset_test = shapes.ShapesDataset()
@@ -187,57 +154,69 @@ def prep_oldshapes_test(init_with = None, FCN_layers = False, batch_sz = 5):
                                      augment = False)
     model.config.display()     
     return [model, dataset_test, test_generator, config]                                 
-    
-    
-##------------------------------------------------------------------------------------    
-## New Shapes 
-##------------------------------------------------------------------------------------    
-    
-def prep_newshapes_dev(init_with = "last", FCN_layers= False, batch_sz = 5):
-    import mrcnn.new_shapes as shapes
-    MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_newshape_dev_logs")
 
-    config = build_config(batch_sz = batch_sz, newshapes=True)
+##------------------------------------------------------------------------------------    
+## New Shapes TESTING
+##------------------------------------------------------------------------------------    
+def prep_newshapes_test(init_with = 'last', FCN_layers = False, batch_sz = 5, epoch_steps = 4,folder_name= "mrcnn_newshape_test_logs"):
+    import mrcnn.new_shapes as new_shapes
+    MODEL_DIR = os.path.join(MODEL_PATH, folder_name)
 
+    # Build configuration object -----------------------------------------------
+    config = new_shapes.NewShapesConfig()
+    config.BATCH_SIZE      = batch_sz                  # Batch size is 2 (# GPUs * images/GPU).
+    config.IMAGES_PER_GPU  = batch_sz                  # Must match BATCH_SIZE
+    config.STEPS_PER_EPOCH = epoch_steps
+    config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
+ 
     # Build shape dataset        -----------------------------------------------
-    # Training dataset 
-    dataset_train = new_shapes.NewShapesDataset()
-    dataset_train.load_shapes(3000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
-    dataset_train.prepare()
+    # Training dataset
+    dataset_test = new_shapes.NewShapesDataset()
+    dataset_test.load_shapes(3000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+    dataset_test.prepare()
 
-    # Validation dataset
-    dataset_val = new_shapes.NewShapesDataset()
-    dataset_val.load_shapes(500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
-    dataset_val.prepare()
 
+    # Recreate the model in inference mode
     try :
-        del model, train_generator, val_generator, mm
+        del model
+        print('delete model is successful')
         gc.collect()
     except: 
         pass
     KB.clear_session()
-    model = modellib.MaskRCNN(mode="training", config=config, model_dir=MODEL_DIR,FCN_layers = FCN_layers)
-
-    print('MODEL_PATH        : ', MODEL_PATH)
-    print('COCO_MODEL_PATH   : ', COCO_MODEL_PATH)
-    print('RESNET_MODEL_PATH : ', RESNET_MODEL_PATH)
-    print('MODEL_DIR         : ', MODEL_DIR)
-    print('Last Saved Model  : ', model.find_last())
-
-    load_model(model, init_with = 'last')
-
-    train_generator = data_generator(dataset_train, model.config, shuffle=True,
-                                 batch_size=model.config.BATCH_SIZE,
-                                 augment = False)    
-    config.display()     
-    return [model, dataset_train, train_generator, config]
-    
+    model = modellib.MaskRCNN(mode="inference", 
+                              config=config,
+                              model_dir=MODEL_DIR, 
+                              FCN_layers = FCN_layers )
         
-def prep_newshapes_train(init_with = "last", FCN_layers= False, batch_sz =5):
-    import mrcnn.new_shapes as shapes
-    MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_newshape_training_logs")
+    print(' COCO Model Path       : ', COCO_MODEL_PATH)
+    print(' Checkpoint folder Path: ', MODEL_DIR)
+    print(' Model Parent Path     : ', MODEL_PATH)
+    print(' Resent Model Path     : ', RESNET_MODEL_PATH)
 
-    config = build_config(batch_sz = batch_sz, newshapes=True)
+    load_model(model, init_with = init_with)
+
+    test_generator = data_generator(dataset_test, model.config, shuffle=True,
+                                     batch_size=model.config.BATCH_SIZE,
+                                     augment = False)
+    model.config.display()     
+    return [model, dataset_test, test_generator, config]                                 
+    
+    
+    
+##------------------------------------------------------------------------------------    
+## New Shapes TRAINING 
+##------------------------------------------------------------------------------------            
+def prep_newshapes_train(init_with = "last", FCN_layers= False, batch_sz =5, epoch_steps = 4, folder_name= "mrcnn_newshape_training_logs"):
+    import mrcnn.new_shapes as new_shapes
+    MODEL_DIR = os.path.join(MODEL_PATH, folder_name)
+
+    # Build configuration object -----------------------------------------------
+    config = new_shapes.NewShapesConfig()
+    config.BATCH_SIZE      = batch_sz                  # Batch size is 2 (# GPUs * images/GPU).
+    config.IMAGES_PER_GPU  = batch_sz                  # Must match BATCH_SIZE
+    config.STEPS_PER_EPOCH = epoch_steps
+    config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
 
     # Build shape dataset        -----------------------------------------------
     # Training dataset
@@ -272,8 +251,12 @@ def prep_newshapes_train(init_with = "last", FCN_layers= False, batch_sz =5):
                                  augment = False)    
     config.display()     
     return [model, dataset_train, train_generator, config]
-    
 
+    
+##------------------------------------------------------------------------------------    
+## LOAD MODEL
+##------------------------------------------------------------------------------------        
+    
 def load_model(model, init_with = None):
     '''
     methods to load weights
@@ -284,7 +267,8 @@ def load_model(model, init_with = None):
     # Which weights to start with?
     print('-----------------------------------------------')
     print(' Load model with init parm: ', init_with)
-    print(' find last chkpt :', model.find_last())
+    # print(' find last chkpt :', model.find_last())
+    # print(' n)
     print('-----------------------------------------------')
    
     ## 1- look for a specific weights file 
@@ -328,4 +312,90 @@ def load_model(model, init_with = None):
         loc = model.load_weights(init_with, by_name=True)    
 
         
-    print('Load weights complete', loc)    
+    print('Load weights complete', loc)        
+    
+
+"""
+##------------------------------------------------------------------------------------    
+## Old Shapes DEVELOPMENT
+##------------------------------------------------------------------------------------        
+def prep_oldshapes_dev(init_with = None, FCN_layers = False, batch_sz = 5):
+    import mrcnn.shapes    as shapes
+    MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_oldshape_dev_logs")
+
+    config = build_config(batch_sz = batch_sz)
+
+    dataset_train = shapes.ShapesDataset()
+    dataset_train.load_shapes(150, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+    dataset_train.prepare()
+     
+    try :
+        del model
+        print('delete model is successful')
+        gc.collect()
+    except: 
+        pass
+    KB.clear_session()
+    model = modellib.MaskRCNN(mode="training", config=config, model_dir=MODEL_DIR, FCN_layers = FCN_layers)
+
+    print(' COCO Model Path       : ', COCO_MODEL_PATH)
+    print(' Checkpoint folder Path: ', MODEL_DIR)
+    print(' Model Parent Path     : ', MODEL_PATH)
+    print(' Resent Model Path     : ', RESNET_MODEL_PATH)
+
+    load_model(model, init_with = init_with)
+
+    train_generator = data_generator(dataset_train, model.config, shuffle=True,
+                                 batch_size=model.config.BATCH_SIZE,
+                                 augment = False)    
+    model.config.display()
+
+    return [model, dataset_train, train_generator, config]
+
+
+
+
+    
+##------------------------------------------------------------------------------------    
+## New Shapes DEVELOPMENT
+##------------------------------------------------------------------------------------            
+def prep_newshapes_dev(init_with = "last", FCN_layers= False, batch_sz = 5):
+    import mrcnn.new_shapes as new_shapes
+    MODEL_DIR = os.path.join(MODEL_PATH, "mrcnn_newshape_dev_logs")
+
+    config = build_config(batch_sz = batch_sz, newshapes=True)
+
+    # Build shape dataset        -----------------------------------------------
+    # Training dataset 
+    dataset_train = new_shapes.NewShapesDataset()
+    dataset_train.load_shapes(3000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+    dataset_train.prepare()
+
+    # Validation dataset
+    dataset_val = new_shapes.NewShapesDataset()
+    dataset_val.load_shapes(500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+    dataset_val.prepare()
+
+    try :
+        del model, train_generator, val_generator, mm
+        gc.collect()
+    except: 
+        pass
+    KB.clear_session()
+    model = modellib.MaskRCNN(mode="training", config=config, model_dir=MODEL_DIR,FCN_layers = FCN_layers)
+
+    print('MODEL_PATH        : ', MODEL_PATH)
+    print('COCO_MODEL_PATH   : ', COCO_MODEL_PATH)
+    print('RESNET_MODEL_PATH : ', RESNET_MODEL_PATH)
+    print('MODEL_DIR         : ', MODEL_DIR)
+    print('Last Saved Model  : ', model.find_last())
+
+    load_model(model, init_with = 'last')
+
+    train_generator = data_generator(dataset_train, model.config, shuffle=True,
+                                 batch_size=model.config.BATCH_SIZE,
+                                 augment = False)    
+    config.display()     
+    return [model, dataset_train, train_generator, config]
+    
+"""

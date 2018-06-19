@@ -5,17 +5,12 @@
 
 import os
 import sys
-# import random
 import math
-# import re
 import gc
 import time
 import numpy as np
-# import cv2
 import argparse
 import platform
-# import matplotlib
-# import matplotlib.pyplot as plt
 import tensorflow as tf
 import keras
 import keras.backend as KB
@@ -23,7 +18,7 @@ sys.path.append('../')
 
 import mrcnn.model_mod  as modellib
 import mrcnn.visualize  as visualize
-import mrcnn.shapes     as shapes
+import mrcnn.new_shapes     as shapes
 from mrcnn.config       import Config
 from mrcnn.dataset      import Dataset 
 from mrcnn.utils        import log, stack_tensors, stack_tensors_3d
@@ -140,12 +135,37 @@ else :
 
 print("Tensorflow Version: {}   Keras Version : {} ".format(tf.__version__,keras.__version__))
 import pprint
+    
+##------------------------------------------------------------------------------------
+## setup tf session and debugging 
+##------------------------------------------------------------------------------------
+# keras_backend.set_session(tf_debug.LocalCLIDebugWrapperSession(tf.Session()))
+# if 'tensorflow' == KB.backend():
+#     from tensorflow.python import debug as tf_debug
+#
+#    config = tf.ConfigProto(device_count = {'GPU': 0} )
+#    tf_sess = tf.Session(config=config)    
+#    tf_sess = tf_debug.LocalCLIDebugWrapperSession(tf_sess)
+#    KB.set_session(tf_sess)
+#
+#
+#   tfconfig = tf.ConfigProto(
+#               gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5),
+#               device_count = {'GPU': 1}
+#              )    
+#     tfconfig = tf.ConfigProto()
+#     tfconfig.gpu_options.allow_growth=True
+#     tfconfig.gpu_options.visible_device_list = "0"
+#     tfconfig.gpu_options.per_process_gpu_memory_fraction=0.5
+#     tf_sess = tf.Session(config=tfconfig)
+#     set_session(tf_sess)
+##------------------------------------------------------------------------------------
 
 
 ##------------------------------------------------------------------------------------
 ## Build configuration object 
 ##------------------------------------------------------------------------------------
-config = shapes.ShapesConfig()
+config = shapes.NewShapesConfig()
 config.BATCH_SIZE      = int(args.batch_size)                  # Batch size is 2 (# GPUs * images/GPU).
 config.IMAGES_PER_GPU  = int(args.batch_size)                  # Must match BATCH_SIZE
 config.STEPS_PER_EPOCH = int(args.steps_in_epoch)
@@ -154,6 +174,7 @@ config.LEARNING_RATE   = float(args.lr)
 config.EPOCHS_TO_RUN   = int(args.epochs)
 config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
 config.LAST_EPOCH_RAN  = int(args.last_epoch)
+config.VALIDATION_STEPS= 125
 config.display() 
 
 ##------------------------------------------------------------------------------------
@@ -161,14 +182,23 @@ config.display()
 ##------------------------------------------------------------------------------------
 # Training dataset
 # generate 500 shapes 
-dataset_train = shapes.ShapesDataset()
-dataset_train.load_shapes(7000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+dataset_train = shapes.NewShapesDataset()
+dataset_train.load_shapes(10000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
 dataset_train.prepare()
 
 # Validation dataset
-dataset_val = shapes.ShapesDataset()
-dataset_val.load_shapes(1000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+dataset_val = shapes.NewShapesDataset()
+dataset_val.load_shapes(2500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
 dataset_val.prepare()
+
+##------------------------------------------------------------------------------------    
+## Load and display random samples
+##------------------------------------------------------------------------------------
+# image_ids = np.random.choice(dataset_train.image_ids, 3)
+# for image_id in [3]:
+#     image = dataset_train.load_image(image_id)
+#     mask, class_ids = dataset_train.load_mask(image_id)
+#     visualize.display_top_masks(image, mask, class_ids, dataset_train.class_names)
 
 ##------------------------------------------------------------------------------------
 ## Build Model
@@ -194,17 +224,30 @@ load_model(model, init_with = args.model)
 
 config.display()  
 model.layer_info()
-print(config.BATCH_SIZE)
-print(model.config.BATCH_SIZE)
 
 ##----------------------------------------------------------------------------------------------
 ##  Training
-##
+## 
+## Train in two stages:
+## 1. Only the heads. Here we're freezing all the backbone layers and training only the randomly 
+##    initialized layers (i.e. the ones that we didn't use pre-trained weights from MS COCO). 
+##    To train only the head layers, pass `layers='heads'` to the `train()` function.
+## 
+## 2. Fine-tune all layers. For this simple example it's not necessary, but we're including it to 
+##    show the process. Simply pass `layers="all` to train all layers.
+## ## Training head using  Keras.model.fit_generator()
+##----------------------------------------------------------------------------------------------
+print(config.BATCH_SIZE)
+print(model.config.BATCH_SIZE)
+ 
+
+##----------------------------------------------------------------------------------------------
 ## Train the FCN only 
 ## Passing layers="heads" freezes all layers except the head
 ## layers. You can also pass a regular expression to select
 ## which layers to train by name pattern.
 ##----------------------------------------------------------------------------------------------            
+
 train_layers = ['fcn']
 loss_names   = ["fcn_norm_loss"]
 
@@ -220,29 +263,3 @@ model.train(dataset_train, dataset_val,
             losses = loss_names,
             min_LR = 1.0e-9,
             )
-
-                
-##------------------------------------------------------------------------------------
-## setup tf session and debugging 
-##------------------------------------------------------------------------------------
-# keras_backend.set_session(tf_debug.LocalCLIDebugWrapperSession(tf.Session()))
-# if 'tensorflow' == KB.backend():
-#     from tensorflow.python import debug as tf_debug
-#
-#    config = tf.ConfigProto(device_count = {'GPU': 0} )
-#    tf_sess = tf.Session(config=config)    
-#    tf_sess = tf_debug.LocalCLIDebugWrapperSession(tf_sess)
-#    KB.set_session(tf_sess)
-#
-#
-#   tfconfig = tf.ConfigProto(
-#               gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5),
-#               device_count = {'GPU': 1}
-#              )    
-#     tfconfig = tf.ConfigProto()
-#     tfconfig.gpu_options.allow_growth=True
-#     tfconfig.gpu_options.visible_device_list = "0"
-#     tfconfig.gpu_options.per_process_gpu_memory_fraction=0.5
-#     tf_sess = tf.Session(config=tfconfig)
-#     set_session(tf_sess)
-##------------------------------------------------------------------------------------

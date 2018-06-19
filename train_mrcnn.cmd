@@ -1,1 +1,1 @@
-python train_model_mod.py  --epochs 1000 --steps_in_epoch 8  --last_epoch 0 --logs_dir mrcnn_oldshape_train_logs  --model /home/kbardool/models/mrcnn_oldshape_train_logs/shapes20180605T1832/mask_rcnn_shapes_2215.h5  --batch_size 32     --lr 0.0001
+python train_mrcnn.py  --epochs 1000 --steps_in_epoch 128  --last_epoch 663 --logs_dir mrcnn_oldshape_train_logs  --model last  --batch_size 32     --lr 0.01

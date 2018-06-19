@@ -83,7 +83,7 @@ def apply_mask(image, mask, color, alpha=0.5):
 ##----------------------------------------------------------------------
 ## display_instances
 ##----------------------------------------------------------------------
-def display_instances(image, boxes, masks, class_ids, class_names,
+def display_instances_with_mask(image, boxes, masks, class_ids, class_names,
                       scores=None, title="",
                       figsize=(16, 16), ax=None):
     """
@@ -156,7 +156,7 @@ def display_instances(image, boxes, masks, class_ids, class_names,
 ##----------------------------------------------------------------------
 ## display_instances
 ##----------------------------------------------------------------------
-def display_instances_wo_mask(image, boxes, class_ids, class_names,
+def display_instances(image, boxes, class_ids, class_names,
                       scores=None, title="",
                       figsize=(16, 16), ax=None):
     """

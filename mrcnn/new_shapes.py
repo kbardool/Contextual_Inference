@@ -132,9 +132,10 @@ class NewShapesDataset(Dataset):
         # list of shapes sizes and locations). This is more compact than
         # actual images. Images are generated on the fly in load_image().
         for i in range(count):
-            if i % 25 == 0:
-                print(' Add image ---> ',i )
+            # if i % 25 == 0:
+                # print(' Add image ---> ',i )
             bg_color, shapes = self.random_image(i, height, width)
+            
             self.add_image("shapes", image_id=i, path=None,
                            width=width, height=height,
                            bg_color=bg_color, shapes=shapes)
@@ -329,14 +330,16 @@ class NewShapesDataset(Dataset):
 
         
     def random_shape(self, shape, height, width):
-        """Generates specifications of a random shape that lies within
+        '''
+        Generates specifications of a random shape that lies within
         the given height and width boundaries.
         Returns a tuple of three valus:
         * The shape name (square, circle, ...)
-        * Shape color: a tuple of 3 values, RGB.
-        * Shape dimensions: A tuple of values that define the shape size
+        * color:     Shape color: a tuple of 3 values, RGB.
+        * x,y  :     location od center of object
+        * sx,sy:     Shape dimensions: A tuple of values that define the shape size
                             and location. Differs per shape type.
-        """
+        '''
         # Shape
 #         shape = random.choice(["square", "circle", "triangle", "rectangle", "person", "car"])
         
@@ -349,13 +352,14 @@ class NewShapesDataset(Dataset):
         min_range_y = self.Min_Y[shape]
         max_range_y = self.Max_Y[shape]
 
+        ## get random center of object (which is constrainted by min/mx ranges above)
         x = random.randint(min_range_x, max_range_x)
         y = random.randint(min_range_y, max_range_y)
         
         if shape == "person":
 
-            min_height = 15
-            max_height = 25
+            min_height = 10
+            max_height = 20
 #             sy = random.randint(min_height, max_height)
             sy = int(np.interp([y],[min_range_y,  max_range_y], [min_height, max_height]))
             sx = sy //5    # body width 

@@ -37,7 +37,7 @@ sys.path.append('..')
 ############################################################
 
 def apply_box_deltas_graph(boxes, deltas):
-    """
+    '''
     Applies the given deltas to the given boxes.
 
     x,y,w,h : Bounding Box coordinates, width, and height
@@ -54,7 +54,8 @@ def apply_box_deltas_graph(boxes, deltas):
     
     boxes:  [N, 4] where each row is [y1, x1, y2, x2]
     deltas: [N, 4] where each row is [dy, dx, log(dh), log(dw)]
-    """
+    '''
+    
     # Convert to y, x, h, w
     height   = boxes[:, 2] - boxes[:, 0]
     width    = boxes[:, 3] - boxes[:, 1]
@@ -119,7 +120,7 @@ def suppress_small_boxes_graph(boxes, scores, min_area_threshold ):
     return selected_boxes, selected_scores    
 
 class ProposalLayer(KE.Layer):
-    """
+    '''
     Receives anchor scores and selects a subset to pass as proposals
     to the second stage. Filtering is done based on anchor scores and
     non-max suppression to remove overlaps. It also applies bounding
@@ -131,7 +132,7 @@ class ProposalLayer(KE.Layer):
 
     Returns:
         Proposals in normalized coordinates [batch, rois, (y1, x1, y2, x2)]
-    """
+    '''
 
     def __init__(self, proposal_count, nms_threshold, anchors,
                  config=None, **kwargs):

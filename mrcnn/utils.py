@@ -574,11 +574,14 @@ def minimize_mask(bbox, mask, mini_shape):
         # print('    bbox: {}      m[{}:{} , {}:{}]    m.shape: {} '.format(i, y1,y2,x1,x2, m.shape))
         m = m[y1:y2, x1:x2]
         # print(' m.size is ', m.size)
+        # added else clause below, commented raise exception for invalid bounding box to avoid 
+        # abend of process when an 0 size bounding box is encountered   7-6-2018
         if m.size == 0:
             print('      ######  m.size is zero for bbox ',i)
-            raise Exception("Invalid bounding box with area of zero")
-        m = scipy.misc.imresize(m.astype(float), mini_shape, interp='bilinear')
-        mini_mask[:, :, i] = np.where(m >= 128, 1, 0)
+            # raise Exception("Invalid bounding box with area of zero")
+        else:
+            m = scipy.misc.imresize(m.astype(float), mini_shape, interp='bilinear')
+            mini_mask[:, :, i] = np.where(m >= 128, 1, 0)
     return mini_mask
 
 
@@ -737,13 +740,14 @@ def compute_ap(gt_boxes, gt_class_ids,
     '''
     # Trim zero padding and sort predictions by score from high to low
     # TODO: cleaner to do zero unpadding upstream
-    gt_boxes = trim_zeros(gt_boxes)
+    gt_boxes   = trim_zeros(gt_boxes)
     pred_boxes = trim_zeros(pred_boxes)
-    pred_scores = pred_scores[:pred_boxes.shape[0]]
-    indices = np.argsort(pred_scores)[::-1]
-    pred_boxes = pred_boxes[indices]
+    pred_scores= pred_scores[:pred_boxes.shape[0]]
+    indices    = np.argsort(pred_scores)[::-1]
+  
+    pred_boxes     = pred_boxes[indices]
     pred_class_ids = pred_class_ids[indices]
-    pred_scores = pred_scores[indices]
+    pred_scores    = pred_scores[indices]
 
     # Compute IoU overlaps [pred_boxes, gt_boxes]
     overlaps = compute_overlaps(pred_boxes, gt_boxes)
@@ -751,7 +755,7 @@ def compute_ap(gt_boxes, gt_class_ids,
     # Loop through ground truth boxes and find matching predictions
     match_count = 0
     pred_match = np.zeros([pred_boxes.shape[0]])
-    gt_match = np.zeros([gt_boxes.shape[0]])
+    gt_match   = np.zeros([gt_boxes.shape[0]])
     for i in range(len(pred_boxes)):
         # Find best matching ground truth box
         sorted_ixs = np.argsort(overlaps[i])[::-1]
@@ -765,18 +769,18 @@ def compute_ap(gt_boxes, gt_class_ids,
                 break
             # Do we have a match?
             if pred_class_ids[i] == gt_class_ids[j]:
-                match_count += 1
-                gt_match[j] = 1
+                match_count  += 1
+                gt_match[j]   = 1
                 pred_match[i] = 1
                 break
 
     # Compute precision and recall at each prediction box step
     precisions = np.cumsum(pred_match) / (np.arange(len(pred_match)) + 1)
-    recalls = np.cumsum(pred_match).astype(np.float32) / len(gt_match)
+    recalls    = np.cumsum(pred_match).astype(np.float32) / len(gt_match)
 
     # Pad with start and end values to simplify the math
     precisions = np.concatenate([[0], precisions, [0]])
-    recalls = np.concatenate([[0], recalls, [1]])
+    recalls    = np.concatenate([[0], recalls, [1]])
 
     # Ensure precision values decrease but don't increase. This way, the
     # precision value at each recall threshold is the maximum it can be
@@ -786,7 +790,7 @@ def compute_ap(gt_boxes, gt_class_ids,
 
     # Compute mean AP over recall range
     indices = np.where(recalls[:-1] != recalls[1:])[0] + 1
-    mAP = np.sum((recalls[indices] - recalls[indices - 1]) *
+    mAP     = np.sum((recalls[indices] - recalls[indices - 1]) *
                  precisions[indices])
 
     return mAP, precisions, recalls, overlaps

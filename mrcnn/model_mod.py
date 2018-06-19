@@ -501,11 +501,9 @@ class MaskRCNN():
             ##---------------------------------------------------------------------------
             ## CHM Inference Layer(s) to generate contextual feature maps using outputs from MRCNN 
             ##----------------------------------------------------------------------------         
-            # pr_hm_norm,  pr_hm_scores, pr_tensor, pr_hm =  CHMLayerInference(config, name = 'cntxt_layer' ) \
-                    # ([mrcnn_class, mrcnn_bbox, detection_boxes])
+            pr_hm_norm,  pr_hm_scores, pr_tensor, pr_hm =  CHMLayerInference(config, name = 'cntxt_layer' ) \
+                    ([mrcnn_class, mrcnn_bbox, detection_boxes])
                                 
-            # pr_hm =  PCILayerTF(config, name = 'cntxt_layer') \
-                            # ([mrcnn_class, mrcnn_bbox, detection_boxes])
             # print('<<<  shape of pred_hm   : ', pr_hm.shape, ' Keras tensor ', KB.is_keras_tensor(pr_hm) )                         
                                         
             ##------------------------------------------------------------------------
@@ -1097,7 +1095,7 @@ class MaskRCNN():
               epochs_to_run     = 0,
               batch_size        = 0, 
               steps_per_epoch   = 0,
-              min_LR            = 0.00001):
+              min_LR            = 0.00002):
         '''
         Train the model.
         train_dataset, 
