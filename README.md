@@ -3,7 +3,7 @@
 The software accompanies the work performed during my thesis project "Using Context Cues for Object Detection in Deep Convolutional Neural Networks"
 
 
-The proposed architecture is a two stage implementation consisting of a modified implementation of [Mask R-CNN](https://arxiv.org/abs/1703.06870) on Python 3, Keras, and TensorFlow. followed by a modified [FCN] (https://arxiv.org/abs/1411.4038)
+The proposed architecture is a two stage implementation consisting of a modified implementation of [Mask R-CNN](https://arxiv.org/abs/1703.06870) on Python 3, Keras, and TensorFlow. followed by a modified [FCN](https://arxiv.org/abs/1411.4038)
 
 
 ![High Level Architecture](assets/HighLevel_Overview_modified.png)
