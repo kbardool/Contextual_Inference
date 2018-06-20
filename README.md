@@ -5,7 +5,7 @@ The software accompanies the work performed during my thesis project "Using Cont
 
 The proposed architecture is a two stage implementation consisting of a modified implementation of [Mask R-CNN](https://arxiv.org/abs/1703.06870) on Python 3, Keras, and TensorFlow. followed by a modified [FCN] (https://arxiv.org/abs/1411.4038)
 
-![High Level Architecture] (assets/)
+![High Level Architecture] (assets/HighLevel_Overview_modified.png)
 
 ## Mask R-CNN
 The model generates bounding boxes and segmentation masks for each instance of an object in the image. It's based on Feature Pyramid Network (FPN) and a ResNet101 backbone.
