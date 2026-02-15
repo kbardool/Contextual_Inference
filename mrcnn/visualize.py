@@ -186,7 +186,7 @@ def display_instances(image, boxes, class_ids, class_names,
     ax.set_xlim(-10, width + 10)
     ax.axis('off')
     ax.set_title(title)
-    print(image.shape)
+ 
     masked_image = image.astype(np.uint32).copy()
     for i in range(N):
         color = colors[i]
@@ -208,7 +208,7 @@ def display_instances(image, boxes, class_ids, class_names,
         x = random.randint(x1, (x1 + x2) // 2)
         caption = "{} {:.3f}".format(label, score) if score else label
         ax.text(x1, y1 + 8, caption,
-                color='w', size=11, backgroundcolor="none")
+                color='k', size=11, backgroundcolor="w")
 
         # Mask
         # mask = masks[:, :, i]
@@ -523,16 +523,18 @@ def display_weight_stats(model):
     layers = model.get_trainable_layers()
     table = [["WEIGHT NAME", "SHAPE", "MIN", "MAX", "STD"]]
     for l in layers:
-        weight_values = l.get_weights()  # list of Numpy arrays
-        weight_tensors = l.weights  # list of TF tensors
+        weight_values  = l.get_weights()  # list of Numpy arrays
+        weight_tensors = l.weights        # list of TF tensors
+        
         for i, w in enumerate(weight_values):
             weight_name = weight_tensors[i].name
+            
             # Detect problematic layers. Exclude biases of conv layers.
             alert = ""
             if w.min() == w.max() and not (l.__class__.__name__ == "Conv2D" and i == 1):
-                alert += "<span style='color:red'>*** dead?</span>"
+                alert += "  <span style='color:red'>*** dead?</span>"
             if np.abs(w.min()) > 1000 or np.abs(w.max()) > 1000:
-                alert += "<span style='color:red'>*** Overflow?</span>"
+                alert += "  <span style='color:red'>*** Overflow?</span>"
             # Add row
             table.append([
                 weight_name + alert,
@@ -792,7 +794,7 @@ def plot_2d_heatmaps( Z, boxes, title = 'My figure', width = 7, columns = 4, num
 ##----------------------------------------------------------------------
 ## plot 3d heatmap for one image (all classes)
 ##----------------------------------------------------------------------    
-def plot_3d_heatmap( Z, width = 7, columns =4, title = None):
+def plot_3d_heatmap( Z, width = 7, columns =4, title = None,class_names=None):
     Z = np.transpose(Z, [2,0,1])
     print('shape of z', Z.shape )
     num_classes = Z.shape[0]    
@@ -815,9 +817,13 @@ def plot_3d_heatmap( Z, width = 7, columns =4, title = None):
         row = cls // columns
         col = cls  % columns
         print( 'class:', cls, 'row:', row,'col:', col)
-        ttl = 'Cls:{:2d}  r/c:{:1d}/{:1d}  '.format( cls, row,col)
+        if class_names == None:
+            ttl = 'Cls:  {:2d} '.format( cls)
+        else:
+            ttl = 'Cls:  {:s}'.format(class_names[cls])
+
         ax = fig.add_subplot(rows, columns, cls+1, projection='3d')
-        ax.set_title(ttl, fontsize=11)
+        ax.set_title(ttl, fontsize=12)
         ax.tick_params(axis='both', labelsize = 5)
         ax.set_zlim(0.0 , 1.1)
         ax.set_ylim(0,130)
@@ -843,7 +849,7 @@ def plot_3d_heatmap( Z, width = 7, columns =4, title = None):
 ##----------------------------------------------------------------------
 ## plot 2d heatmap for one image (all classes)
 ##----------------------------------------------------------------------        
-def plot_2d_heatmap( Z, boxes,  width = 7, columns =4, num_bboxes = 0, title = None):
+def plot_2d_heatmap( Z, boxes,  width = 7, columns =4, num_bboxes = 0, title = None,class_names=None):
     Z = np.transpose(Z, [2,0,1])
     num_classes = Z.shape[0]    
     if num_bboxes == 0 :
@@ -871,9 +877,12 @@ def plot_2d_heatmap( Z, boxes,  width = 7, columns =4, num_bboxes = 0, title = N
         row = cls // columns
         col = cls  % columns
         # print('Image: ', img, 'class:', cls, 'row:', row,'col:', col)
-        ttl = 'Cls:{:2d}  r/c:{:1d}/{:1d}  '.format( cls, row,col)
+        if class_names == None:
+            ttl = 'Cls:  {:2d} '.format( cls)
+        else:
+            ttl = 'Cls:  {:s}'.format(class_names[cls])
         ax = fig.add_subplot(rows, columns, cls+1)
-        ax.set_title(ttl, fontsize=11)
+        ax.set_title(ttl, fontsize=12)
         ax.tick_params(axis='both', labelsize = 5)
         ax.set_ylim(0,130)
         ax.set_xlim(0,130)

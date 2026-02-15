@@ -3,3 +3,7 @@ __pycache__/
 mask_rcnn_coco.h5
 *.h5
 logs/
+CondorJobs/
+*.log
+images/Thumbs.db
+new 1.txt

@@ -139,8 +139,6 @@ else :
 
 
 print("Tensorflow Version: {}   Keras Version : {} ".format(tf.__version__,keras.__version__))
-import pprint
-
 
 ##------------------------------------------------------------------------------------
 ## Build configuration object 

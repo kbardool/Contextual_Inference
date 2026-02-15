@@ -1,0 +1,1 @@
+python train_newshapes_mrcnn.py --epochs 500 --steps_in_epoch 500 --last_epoch 1058 --batch_size 16 --lr 0.0002 --logs_dir newshape_mrcnn --model last

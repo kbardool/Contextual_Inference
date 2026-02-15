@@ -25,7 +25,7 @@ from mrcnn.utils        import log, stack_tensors, stack_tensors_3d
 from mrcnn.datagen      import data_generator, load_image_gt
 from mrcnn.callbacks    import get_layer_output_1,get_layer_output_2
 # from mrcnn.visualize    import plot_gaussian
-from mrcnn.prep_notebook import prep_oldshapes_train, load_model
+# from mrcnn.prep_notebook import prep_oldshapes_train, load_model
 
 import pprint
 pp = pprint.PrettyPrinter(indent=2, width=100)
@@ -135,46 +135,28 @@ else :
 
 print("Tensorflow Version: {}   Keras Version : {} ".format(tf.__version__,keras.__version__))
 import pprint
-    
-##------------------------------------------------------------------------------------
-## setup tf session and debugging 
-##------------------------------------------------------------------------------------
-# keras_backend.set_session(tf_debug.LocalCLIDebugWrapperSession(tf.Session()))
-# if 'tensorflow' == KB.backend():
-#     from tensorflow.python import debug as tf_debug
-#
-#    config = tf.ConfigProto(device_count = {'GPU': 0} )
-#    tf_sess = tf.Session(config=config)    
-#    tf_sess = tf_debug.LocalCLIDebugWrapperSession(tf_sess)
-#    KB.set_session(tf_sess)
-#
-#
-#   tfconfig = tf.ConfigProto(
-#               gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5),
-#               device_count = {'GPU': 1}
-#              )    
-#     tfconfig = tf.ConfigProto()
-#     tfconfig.gpu_options.allow_growth=True
-#     tfconfig.gpu_options.visible_device_list = "0"
-#     tfconfig.gpu_options.per_process_gpu_memory_fraction=0.5
-#     tf_sess = tf.Session(config=tfconfig)
-#     set_session(tf_sess)
-##------------------------------------------------------------------------------------
-
 
 ##------------------------------------------------------------------------------------
 ## Build configuration object 
 ##------------------------------------------------------------------------------------
-config = shapes.NewShapesConfig()
-config.BATCH_SIZE      = int(args.batch_size)                  # Batch size is 2 (# GPUs * images/GPU).
-config.IMAGES_PER_GPU  = int(args.batch_size)                  # Must match BATCH_SIZE
-config.STEPS_PER_EPOCH = int(args.steps_in_epoch)
-config.LEARNING_RATE   = float(args.lr)
+config                    = shapes.NewShapesConfig()
+config.BATCH_SIZE         = int(args.batch_size)                  # Batch size is 2 (# GPUs * images/GPU).
+config.IMAGES_PER_GPU     = int(args.batch_size)                  # Must match BATCH_SIZE
+config.STEPS_PER_EPOCH    = int(args.steps_in_epoch)
+config.LEARNING_RATE      = float(args.lr)
+ 
+config.EPOCHS_TO_RUN      = int(args.epochs)
+config.FCN_INPUT_SHAPE    = config.IMAGE_SHAPE[0:2]
+config.LAST_EPOCH_RAN     = int(args.last_epoch)
+config.WEIGHT_DECAY       = 2.0e-4
+config.VALIDATION_STEPS   = 100
+config.REDUCE_LR_FACTOR   = 0.5
+config.REDUCE_LR_COOLDOWN = 30
+config.REDUCE_LR_PATIENCE = 40
+config.EARLY_STOP_PATIENCE= 80
+config.MIN_LR             = 1.0e-10
 
-config.EPOCHS_TO_RUN   = int(args.epochs)
-config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
-config.LAST_EPOCH_RAN  = int(args.last_epoch)
-config.VALIDATION_STEPS= 125
+
 config.display() 
 
 ##------------------------------------------------------------------------------------
@@ -182,13 +164,13 @@ config.display()
 ##------------------------------------------------------------------------------------
 # Training dataset
 # generate 500 shapes 
-dataset_train = shapes.NewShapesDataset()
-dataset_train.load_shapes(10000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+dataset_train = shapes.NewShapesDataset(config)
+dataset_train.load_shapes(10000)
 dataset_train.prepare()
 
 # Validation dataset
-dataset_val = shapes.NewShapesDataset()
-dataset_val.load_shapes(2500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+dataset_val = shapes.NewShapesDataset(config)
+dataset_val.load_shapes(2500)
 dataset_val.prepare()
 
 ##------------------------------------------------------------------------------------    
@@ -220,7 +202,50 @@ print(' Model Parent Path     : ', MODEL_PATH)
 ##----------------------------------------------------------------------------------------------
 ## Load Model Weight file
 ##----------------------------------------------------------------------------------------------
-load_model(model, init_with = args.model)   
+
+
+# exclude_layers = \
+       # ['fcn_block1_conv1' 
+       # ,'fcn_block1_conv2' 
+       # ,'fcn_block1_pool' 
+       # ,'fcn_block2_conv1'
+       # ,'fcn_block2_conv2' 
+       # ,'fcn_block2_pool'  
+       # ,'fcn_block3_conv1' 
+       # ,'fcn_block3_conv2' 
+       # ,'fcn_block3_conv3' 
+       # ,'fcn_block3_pool'  
+       # ,'fcn_block4_conv1' 
+       # ,'fcn_block4_conv2' 
+       # ,'fcn_block4_conv3' 
+       # ,'fcn_block4_pool'  
+       # ,'fcn_block5_conv1' 
+       # ,'fcn_block5_conv2' 
+       # ,'fcn_block5_conv3' 
+       # ,'fcn_block5_pool'  
+       # ,'fcn_fc1'          
+       # ,'dropout_1'        
+       # ,'fcn_fc2'          
+       # ,'dropout_2'        
+       # ,'fcn_classify'     
+       # ,'fcn_bilinear'     
+       # ,'fcn_heatmap_norm' 
+       # ,'fcn_scoring'      
+       # ,'fcn_heatmap'      
+       # ,'fcn_norm_loss']
+
+exclude_layers = []
+model.load_model_weights(init_with = args.model, exclude = exclude_layers)   
+    
+# print('=====================================')
+# print(" Load second weight file  ")
+# print('=====================================')
+
+# model.keras_model.load_weights('/home/kbardool/models/fcn_vgg16_weights_tf_dim_ordering_tf_kernels.h5', by_name= True )
+
+# print('=====================================')
+# print(" Load second weight file COMPLETE    ")
+# print('=====================================')
 
 config.display()  
 model.layer_info()
@@ -259,7 +284,37 @@ model.train(dataset_train, dataset_val,
             learning_rate = model.config.LEARNING_RATE, 
             epochs_to_run = config.EPOCHS_TO_RUN,
 #             epochs = 25,            # total number of epochs to run (accross multiple trainings)
+#             batch_size = 0
+#             steps_per_epoch = 0 
             layers = train_layers,
             losses = loss_names,
             min_LR = 1.0e-9,
             )
+                
+"""            
+##------------------------------------------------------------------------------------
+## setup tf session and debugging 
+##------------------------------------------------------------------------------------
+# keras_backend.set_session(tf_debug.LocalCLIDebugWrapperSession(tf.Session()))
+# if 'tensorflow' == KB.backend():
+#     from tensorflow.python import debug as tf_debug
+#
+#    config = tf.ConfigProto(device_count = {'GPU': 0} )
+#    tf_sess = tf.Session(config=config)    
+#    tf_sess = tf_debug.LocalCLIDebugWrapperSession(tf_sess)
+#    KB.set_session(tf_sess)
+#
+#
+#   tfconfig = tf.ConfigProto(
+#               gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5),
+#               device_count = {'GPU': 1}
+#              )    
+#     tfconfig = tf.ConfigProto()
+#     tfconfig.gpu_options.allow_growth=True
+#     tfconfig.gpu_options.visible_device_list = "0"
+#     tfconfig.gpu_options.per_process_gpu_memory_fraction=0.5
+#     tf_sess = tf.Session(config=tfconfig)
+#     set_session(tf_sess)
+##------------------------------------------------------------------------------------
+
+

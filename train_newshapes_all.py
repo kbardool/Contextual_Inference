@@ -165,15 +165,22 @@ import pprint
 ##------------------------------------------------------------------------------------
 ## Build configuration object 
 ##------------------------------------------------------------------------------------
-config = shapes.NewShapesConfig()
-config.BATCH_SIZE      = int(args.batch_size)                  # Batch size is 2 (# GPUs * images/GPU).
-config.IMAGES_PER_GPU  = int(args.batch_size)                  # Must match BATCH_SIZE
-config.STEPS_PER_EPOCH = int(args.steps_in_epoch)
-config.LEARNING_RATE   = float(args.lr)
-
-config.EPOCHS_TO_RUN   = int(args.epochs)
-config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
-config.LAST_EPOCH_RAN  = int(args.last_epoch)
+config                    = shapes.NewShapesConfig()
+config.BATCH_SIZE         = int(args.batch_size)                  # Batch size is 2 (# GPUs * images/GPU).
+config.IMAGES_PER_GPU     = int(args.batch_size)                  # Must match BATCH_SIZE
+config.STEPS_PER_EPOCH    = int(args.steps_in_epoch)
+config.LEARNING_RATE      = float(args.lr)
+                          
+config.EPOCHS_TO_RUN      = int(args.epochs)
+config.FCN_INPUT_SHAPE    = config.IMAGE_SHAPE[0:2]
+config.LAST_EPOCH_RAN     = int(args.last_epoch)
+config.WEIGHT_DECAY       = 1.0e-4
+config.VALIDATION_STEPS   = 25
+config.REDUCE_LR_FACTOR   = 0.5 
+config.REDUCE_LR_COOLDOWN = 10
+config.REDUCE_LR_PATIENCE = 40
+config.EARLY_STOP_PATIENCE= 80
+config.MIN_LR             = 1.0e-10
 config.display() 
 
 ##------------------------------------------------------------------------------------
@@ -219,8 +226,10 @@ print(' Model Parent Path     : ', MODEL_PATH)
 ##----------------------------------------------------------------------------------------------
 ## Load Model Weight file
 ##----------------------------------------------------------------------------------------------
-load_model(model, init_with = args.model)   
+exclude_list = ["mrcnn_class_logits"]
+#load_model(model, init_with = args.model)   
 
+load_model(model, init_with = args.model, exclude = exclude_list)   
 config.display()  
 model.layer_info()
 
@@ -257,13 +266,13 @@ model.config.STEPS_PER_EPOCH = config.STEPS_PER_EPOCH
 
 model.train(dataset_train, dataset_val, 
             learning_rate = model.config.LEARNING_RATE, 
-            epochs_to_run = config.EPOCHS_TO_RUN ,
-#             epochs = 25,            
+            epochs_to_run = config.EPOCHS_TO_RUN,
+#             epochs = 25,            # total number of epochs to run (accross multiple trainings)
 #             batch_size = 0
 #             steps_per_epoch = 0 
             layers = train_layers,
             losses = loss_names,
-            min_LR = 1.0e-6,
+            min_LR = 1.0e-9,
             )
             
  

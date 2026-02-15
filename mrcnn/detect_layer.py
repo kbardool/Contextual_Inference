@@ -191,18 +191,18 @@ class DetectionLayer(KE.Layer):
             from mrcnn.utils import parse_image_meta
             detections_batch = []
             print('    Wrapper for Detection Layer : call() ', type(inputs), len(inputs))    
-            print('     rpn_proposals_roi  :',  inputs[0].shape, rois.shape, type(rois)) # , inputs[0].get_shape(), KB.int_shape(inputs[0]) )
-            print('     mrcnn_class.shape  :',  inputs[1].shape, mrcnn_class.shape, type(mrcnn_class)) # , inputs[1].get_shape(), KB.int_shape(inputs[1]) ) 
-            print('     mrcnn_bboxes.shape :',  inputs[2].shape, mrcnn_bbox.shape, type(mrcnn_bbox)) # , inputs[2].get_shape(), KB.int_shape(inputs[2]) )
-            print('     image_meta         :',  inputs[3].shape, image_meta.shape, type(image_meta)) # , inputs[3].get_shape(), KB.int_shape(inputs[3]) ) 
-                
+            # print('     rpn_proposals_roi  :',  inputs[0].shape, rois.shape, type(rois)) # , inputs[0].get_shape(), KB.int_shape(inputs[0]) )
+            # print('     mrcnn_class.shape  :',  inputs[1].shape, mrcnn_class.shape, type(mrcnn_class)) # , inputs[1].get_shape(), KB.int_shape(inputs[1]) ) 
+            # print('     mrcnn_bboxes.shape :',  inputs[2].shape, mrcnn_bbox.shape, type(mrcnn_bbox)) # , inputs[2].get_shape(), KB.int_shape(inputs[2]) )
+            # print('     image_meta         :',  inputs[3].shape, image_meta.shape, type(image_meta)) # , inputs[3].get_shape(), KB.int_shape(inputs[3]) ) 
             # process item per item in batch 
             
             for b in range(self.config.BATCH_SIZE):
                 _, _, window, _ =  parse_image_meta(image_meta)
 
                 detections = refine_detections(rois[b], mrcnn_class[b], mrcnn_bbox[b], window[b], self.config)
-                
+                print('\n\n Detections are:')
+                print(detections)
                 # Pad with zeros if detections < DETECTION_MAX_INSTANCES
                 gap = self.config.DETECTION_MAX_INSTANCES - detections.shape[0]
                 assert gap >= 0

@@ -18,6 +18,7 @@ import keras
 import keras.backend as KB
 import mrcnn.model_mod     as modellib
 import mrcnn.visualize as visualize
+import mrcnn.new_shapes as new_shapes
 from mrcnn.config      import Config
 from mrcnn.dataset     import Dataset 
 from mrcnn.utils       import stack_tensors, stack_tensors_3d, log
@@ -57,6 +58,261 @@ import pprint
 pp = pprint.PrettyPrinter(indent=2, width=100)
 np.set_printoptions(linewidth=100,precision=4,threshold=1000, suppress = True)
 
+##------------------------------------------------------------------------------------    
+## New Shapes TESTING
+##------------------------------------------------------------------------------------    
+def prep_newshapes_test(init_with = 'last', FCN_layers = False, batch_sz = 5, epoch_steps = 4,folder_name= "mrcnn_newshape_test_logs"):
+
+    MODEL_DIR = os.path.join(MODEL_PATH, folder_name)
+
+    # Build configuration object -----------------------------------------------
+    config = new_shapes.NewShapesConfig()
+    config.BATCH_SIZE      = batch_sz                  # Batch size is 2 (# GPUs * images/GPU).
+    config.IMAGES_PER_GPU  = batch_sz                  # Must match BATCH_SIZE
+    config.STEPS_PER_EPOCH = epoch_steps
+    config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
+    config.DETECTION_MIN_CONFIDENCE = 0.1
+    # Build shape dataset        -----------------------------------------------
+    # Training dataset
+    dataset_test = new_shapes.NewShapesDataset(config)
+    dataset_test.load_shapes(3000)
+    dataset_test.prepare()
+
+
+    # Recreate the model in inference mode
+    try :
+        del model
+        print('delete model is successful')
+        gc.collect()
+    except: 
+        pass
+    KB.clear_session()
+    model = modellib.MaskRCNN(mode="inference", 
+                              config=config,
+                              model_dir=MODEL_DIR, 
+                              FCN_layers = FCN_layers )
+        
+    print(' COCO Model Path       : ', COCO_MODEL_PATH)
+    print(' Checkpoint folder Path: ', MODEL_DIR)
+    print(' Model Parent Path     : ', MODEL_PATH)
+    print(' Resent Model Path     : ', RESNET_MODEL_PATH)
+    # exclude_layers = \
+           # ['fcn_block1_conv1' 
+           # ,'fcn_block1_conv2' 
+           # ,'fcn_block1_pool' 
+           # ,'fcn_block2_conv1'
+           # ,'fcn_block2_conv2' 
+           # ,'fcn_block2_pool'  
+           # ,'fcn_block3_conv1' 
+           # ,'fcn_block3_conv2' 
+           # ,'fcn_block3_conv3' 
+           # ,'fcn_block3_pool'  
+           # ,'fcn_block4_conv1' 
+           # ,'fcn_block4_conv2' 
+           # ,'fcn_block4_conv3' 
+           # ,'fcn_block4_pool'  
+           # ,'fcn_block5_conv1' 
+           # ,'fcn_block5_conv2' 
+           # ,'fcn_block5_conv3' 
+           # ,'fcn_block5_pool'  
+           # ,'fcn_fc1'          
+           # ,'dropout_1'        
+           # ,'fcn_fc2'          
+           # ,'dropout_2'        
+           # ,'fcn_classify'     
+           # ,'fcn_bilinear'     
+           # ,'fcn_heatmap_norm' 
+           # ,'fcn_scoring'      
+           # ,'fcn_heatmap'      
+           # ,'fcn_norm_loss']
+    
+    # load_model(model, init_with = init_with, exclude = exclude_layers)
+    model.load_model_weights(init_with = init_with) 
+
+    # print('=====================================')
+    # print(" Load second weight file ?? ")
+    # model.keras_model.load_weights('E:/Models/vgg16_weights_tf_dim_ordering_tf_kernels.h5', by_name= True )
+    
+    test_generator = data_generator(dataset_test, model.config, shuffle=True,
+                                     batch_size=model.config.BATCH_SIZE,
+                                     augment = False)
+    model.config.display()     
+    return [model, dataset_test, test_generator, config]                                 
+    
+    
+    
+##------------------------------------------------------------------------------------    
+## New Shapes TRAINING 
+##------------------------------------------------------------------------------------            
+def prep_newshapes_train2(init_with = "last",  config=None):
+
+    import mrcnn.new_shapes as new_shapes
+    config.CHECKPOINT_FOLDER = os.path.join(MODEL_PATH, config.CHECKPOINT_FOLDER)
+
+    # Build shape dataset        -----------------------------------------------
+    # Training dataset
+    dataset_train = new_shapes.NewShapesDataset(config)
+    dataset_train.load_shapes(config.TRAINING_IMAGES) 
+    dataset_train.prepare()
+
+    # Validation dataset
+    dataset_val = new_shapes.NewShapesDataset(config)
+    dataset_val.load_shapes(config.VALIDATION_IMAGES)
+    dataset_val.prepare()
+
+    try :
+        del model
+        print('delete model is successful')
+        gc.collect()
+    except: 
+        pass
+    KB.clear_session()
+    model = modellib.MaskRCNN(mode="training", config=config, model_dir=config.CHECKPOINT_FOLDER, FCN_layers = config.FCN_LAYERS)
+
+    print('MODEL_PATH        : ', MODEL_PATH)
+    print('COCO_MODEL_PATH   : ', COCO_MODEL_PATH)
+    print('RESNET_MODEL_PATH : ', RESNET_MODEL_PATH)
+    print('CHECKPOINT_DIR    : ', config.CHECKPOINT_FOLDER)
+    print('Last Saved Model  : ', model.find_last())
+    # exclude_layers = \
+           # ['fcn_block1_conv1' 
+           # ,'fcn_block1_conv2' 
+           # ,'fcn_block1_pool' 
+           # ,'fcn_block2_conv1'
+           # ,'fcn_block2_conv2' 
+           # ,'fcn_block2_pool'  
+           # ,'fcn_block3_conv1' 
+           # ,'fcn_block3_conv2' 
+           # ,'fcn_block3_conv3' 
+           # ,'fcn_block3_pool'  
+           # ,'fcn_block4_conv1' 
+           # ,'fcn_block4_conv2' 
+           # ,'fcn_block4_conv3' 
+           # ,'fcn_block4_pool'  
+           # ,'fcn_block5_conv1' 
+           # ,'fcn_block5_conv2' 
+           # ,'fcn_block5_conv3' 
+           # ,'fcn_block5_pool'  
+           # ,'fcn_fc1'          
+           # ,'dropout_1'        
+           # ,'fcn_fc2'          
+           # ,'dropout_2'        
+           # ,'fcn_classify'     
+           # ,'fcn_bilinear'     
+           # ,'fcn_heatmap_norm' 
+           # ,'fcn_scoring'      
+           # ,'fcn_heatmap'      
+           # ,'fcn_norm_loss']
+    # load_model(model, init_with = 'last', exclude = exclude_layers)
+    model.load_model_weights(init_with = init_with)
+    
+    # print('=====================================')
+    # print(" Load second weight file ?? ")
+    # model.keras_model.load_weights('E:/Models/vgg16_weights_tf_dim_ordering_tf_kernels.h5', by_name= True)
+    
+    
+    
+    train_generator = data_generator(dataset_train, model.config, shuffle=True,
+                                 batch_size=model.config.BATCH_SIZE,
+                                 augment = False)   
+
+
+    val_generator = data_generator(dataset_val, model.config, shuffle=True, 
+                                    batch_size=model.config.BATCH_SIZE,
+                                    augment=False)                                           
+    config.display()     
+    return [model, dataset_train, dataset_val, train_generator, val_generator, config]
+
+    
+##------------------------------------------------------------------------------------    
+## New Shapes TRAINING 
+##------------------------------------------------------------------------------------            
+def prep_newshapes_train(init_with = "last", FCN_layers= False, batch_sz =5, epoch_steps = 4, folder_name= None):
+
+    MODEL_DIR = os.path.join(MODEL_PATH, folder_name)
+
+    # Build configuration object -----------------------------------------------
+    config = new_shapes.NewShapesConfig()
+    config.BATCH_SIZE      = batch_sz                  # Batch size is 2 (# GPUs * images/GPU).
+    config.IMAGES_PER_GPU  = batch_sz                  # Must match BATCH_SIZE
+    config.STEPS_PER_EPOCH = epoch_steps
+    config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
+
+    # Build shape dataset        -----------------------------------------------
+    # Training dataset
+    dataset_train = new_shapes.NewShapesDataset(config)
+    dataset_train.load_shapes(10000) 
+    dataset_train.prepare()
+
+    # Validation dataset
+    dataset_val = new_shapes.NewShapesDataset(config)
+    dataset_val.load_shapes(2500)
+    dataset_val.prepare()
+
+    try :
+        del model
+        print('delete model is successful')
+        gc.collect()
+    except: 
+        pass
+    KB.clear_session()
+    model = modellib.MaskRCNN(mode="training", config=config, model_dir=MODEL_DIR,FCN_layers = FCN_layers)
+
+    print('MODEL_PATH        : ', MODEL_PATH)
+    print('COCO_MODEL_PATH   : ', COCO_MODEL_PATH)
+    print('RESNET_MODEL_PATH : ', RESNET_MODEL_PATH)
+    print('MODEL_DIR         : ', MODEL_DIR)
+    print('Last Saved Model  : ', model.find_last())
+    # exclude_layers = \
+           # ['fcn_block1_conv1' 
+           # ,'fcn_block1_conv2' 
+           # ,'fcn_block1_pool' 
+           # ,'fcn_block2_conv1'
+           # ,'fcn_block2_conv2' 
+           # ,'fcn_block2_pool'  
+           # ,'fcn_block3_conv1' 
+           # ,'fcn_block3_conv2' 
+           # ,'fcn_block3_conv3' 
+           # ,'fcn_block3_pool'  
+           # ,'fcn_block4_conv1' 
+           # ,'fcn_block4_conv2' 
+           # ,'fcn_block4_conv3' 
+           # ,'fcn_block4_pool'  
+           # ,'fcn_block5_conv1' 
+           # ,'fcn_block5_conv2' 
+           # ,'fcn_block5_conv3' 
+           # ,'fcn_block5_pool'  
+           # ,'fcn_fc1'          
+           # ,'dropout_1'        
+           # ,'fcn_fc2'          
+           # ,'dropout_2'        
+           # ,'fcn_classify'     
+           # ,'fcn_bilinear'     
+           # ,'fcn_heatmap_norm' 
+           # ,'fcn_scoring'      
+           # ,'fcn_heatmap'      
+           # ,'fcn_norm_loss']
+    # load_model(model, init_with = 'last', exclude = exclude_layers)
+    model.load_model_weights(init_with = init_with)
+    
+    # print('=====================================')
+    # print(" Load second weight file ?? ")
+    # model.keras_model.load_weights('E:/Models/vgg16_weights_tf_dim_ordering_tf_kernels.h5', by_name= True)
+    
+    
+    
+    train_generator = data_generator(dataset_train, model.config, shuffle=True,
+                                 batch_size=model.config.BATCH_SIZE,
+                                 augment = False)   
+
+
+    val_generator = data_generator(dataset_val, model.config, shuffle=True, 
+                                    batch_size=model.config.BATCH_SIZE,
+                                    augment=False)                                           
+    config.display()     
+    return [model, dataset_train, dataset_val, train_generator, val_generator, config]
+
+    
 
     
 ##------------------------------------------------------------------------------------    
@@ -74,13 +330,13 @@ def prep_oldshapes_train(init_with = None, FCN_layers = False, batch_sz = 5, epo
     config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
 
     # Build shape dataset        -----------------------------------------------
-    dataset_train = shapes.ShapesDataset()
-    dataset_train.load_shapes(3000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+    dataset_train = shapes.ShapesDataset(config)
+    dataset_train.load_shapes(3000) 
     dataset_train.prepare()
 
     # Validation dataset
-    dataset_val  = shapes.ShapesDataset()
-    dataset_val.load_shapes(500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+    dataset_val  = shapes.ShapesDataset(config)
+    dataset_val.load_shapes(500)
     dataset_val.prepare()
     
     try :
@@ -97,7 +353,7 @@ def prep_oldshapes_train(init_with = None, FCN_layers = False, batch_sz = 5, epo
     print(' Model Parent Path     : ', MODEL_PATH)
     print(' Resent Model Path     : ', RESNET_MODEL_PATH)
 
-    load_model(model, init_with = init_with)
+    model.load_model_weights(init_with = init_with)
 
     train_generator = data_generator(dataset_train, model.config, shuffle=True,
                                      batch_size=model.config.BATCH_SIZE,
@@ -125,8 +381,8 @@ def prep_oldshapes_test(init_with = None, FCN_layers = False, batch_sz = 5, epoc
     config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
 
     # Build shape dataset        -----------------------------------------------
-    dataset_test = shapes.ShapesDataset()
-    dataset_test.load_shapes(500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
+    dataset_test = shapes.ShapesDataset(config)
+    dataset_test.load_shapes(500) 
     dataset_test.prepare()
 
     # Recreate the model in inference mode
@@ -147,7 +403,7 @@ def prep_oldshapes_test(init_with = None, FCN_layers = False, batch_sz = 5, epoc
     print(' Model Parent Path     : ', MODEL_PATH)
     print(' Resent Model Path     : ', RESNET_MODEL_PATH)
 
-    load_model(model, init_with = init_with)
+    model.load_model_weights(init_with = init_with)
 
     test_generator = data_generator(dataset_test, model.config, shuffle=True,
                                      batch_size=model.config.BATCH_SIZE,
@@ -155,165 +411,6 @@ def prep_oldshapes_test(init_with = None, FCN_layers = False, batch_sz = 5, epoc
     model.config.display()     
     return [model, dataset_test, test_generator, config]                                 
 
-##------------------------------------------------------------------------------------    
-## New Shapes TESTING
-##------------------------------------------------------------------------------------    
-def prep_newshapes_test(init_with = 'last', FCN_layers = False, batch_sz = 5, epoch_steps = 4,folder_name= "mrcnn_newshape_test_logs"):
-    import mrcnn.new_shapes as new_shapes
-    MODEL_DIR = os.path.join(MODEL_PATH, folder_name)
-
-    # Build configuration object -----------------------------------------------
-    config = new_shapes.NewShapesConfig()
-    config.BATCH_SIZE      = batch_sz                  # Batch size is 2 (# GPUs * images/GPU).
-    config.IMAGES_PER_GPU  = batch_sz                  # Must match BATCH_SIZE
-    config.STEPS_PER_EPOCH = epoch_steps
-    config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
- 
-    # Build shape dataset        -----------------------------------------------
-    # Training dataset
-    dataset_test = new_shapes.NewShapesDataset()
-    dataset_test.load_shapes(3000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
-    dataset_test.prepare()
-
-
-    # Recreate the model in inference mode
-    try :
-        del model
-        print('delete model is successful')
-        gc.collect()
-    except: 
-        pass
-    KB.clear_session()
-    model = modellib.MaskRCNN(mode="inference", 
-                              config=config,
-                              model_dir=MODEL_DIR, 
-                              FCN_layers = FCN_layers )
-        
-    print(' COCO Model Path       : ', COCO_MODEL_PATH)
-    print(' Checkpoint folder Path: ', MODEL_DIR)
-    print(' Model Parent Path     : ', MODEL_PATH)
-    print(' Resent Model Path     : ', RESNET_MODEL_PATH)
-
-    load_model(model, init_with = init_with)
-
-    test_generator = data_generator(dataset_test, model.config, shuffle=True,
-                                     batch_size=model.config.BATCH_SIZE,
-                                     augment = False)
-    model.config.display()     
-    return [model, dataset_test, test_generator, config]                                 
-    
-    
-    
-##------------------------------------------------------------------------------------    
-## New Shapes TRAINING 
-##------------------------------------------------------------------------------------            
-def prep_newshapes_train(init_with = "last", FCN_layers= False, batch_sz =5, epoch_steps = 4, folder_name= "mrcnn_newshape_training_logs"):
-    import mrcnn.new_shapes as new_shapes
-    MODEL_DIR = os.path.join(MODEL_PATH, folder_name)
-
-    # Build configuration object -----------------------------------------------
-    config = new_shapes.NewShapesConfig()
-    config.BATCH_SIZE      = batch_sz                  # Batch size is 2 (# GPUs * images/GPU).
-    config.IMAGES_PER_GPU  = batch_sz                  # Must match BATCH_SIZE
-    config.STEPS_PER_EPOCH = epoch_steps
-    config.FCN_INPUT_SHAPE = config.IMAGE_SHAPE[0:2]
-
-    # Build shape dataset        -----------------------------------------------
-    # Training dataset
-    dataset_train = new_shapes.NewShapesDataset()
-    dataset_train.load_shapes(3000, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
-    dataset_train.prepare()
-
-    # Validation dataset
-    dataset_val = new_shapes.NewShapesDataset()
-    dataset_val.load_shapes(500, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1])
-    dataset_val.prepare()
-
-    try :
-        del model
-        print('delete model is successful')
-        gc.collect()
-    except: 
-        pass
-    KB.clear_session()
-    model = modellib.MaskRCNN(mode="training", config=config, model_dir=MODEL_DIR,FCN_layers = FCN_layers)
-
-    print('MODEL_PATH        : ', MODEL_PATH)
-    print('COCO_MODEL_PATH   : ', COCO_MODEL_PATH)
-    print('RESNET_MODEL_PATH : ', RESNET_MODEL_PATH)
-    print('MODEL_DIR         : ', MODEL_DIR)
-    print('Last Saved Model  : ', model.find_last())
-
-    load_model(model, init_with = 'last')
-
-    train_generator = data_generator(dataset_train, model.config, shuffle=True,
-                                 batch_size=model.config.BATCH_SIZE,
-                                 augment = False)    
-    config.display()     
-    return [model, dataset_train, train_generator, config]
-
-    
-##------------------------------------------------------------------------------------    
-## LOAD MODEL
-##------------------------------------------------------------------------------------        
-    
-def load_model(model, init_with = None):
-    '''
-    methods to load weights
-    1 - load a specific file
-    2 - find a last checkpoint in a specific folder 
-    3 - use init_with keyword 
-    '''    
-    # Which weights to start with?
-    print('-----------------------------------------------')
-    print(' Load model with init parm: ', init_with)
-    # print(' find last chkpt :', model.find_last())
-    # print(' n)
-    print('-----------------------------------------------')
-   
-    ## 1- look for a specific weights file 
-    ## Load trained weights (fill in path to trained weights here)
-    # model_path  = 'E:\\Models\\mrcnn_logs\\shapes20180428T1819\\mask_rcnn_shapes_5784.h5'
-    # print(' model_path : ', model_path )
-
-    # print("Loading weights from ", model_path)
-    # model.load_weights(model_path, by_name=True)    
-    # print('Load weights complete')
-
-    # ## 2- look for last checkpoint file in a specific folder (not working correctly)
-    # model.config.LAST_EPOCH_RAN = 5784
-    # model.model_dir = 'E:\\Models\\mrcnn_logs\\shapes20180428T1819'
-    # last_model_found = model.find_last()
-    # print(' last model in MODEL_DIR: ', last_model_found)
-    # # loc= model.load_weights(model.find_last()[1], by_name=True)
-    # # print('Load weights complete :', loc)
-
-
-    ## 3- Use init_with keyword
-    ## Which weights to start with?
-    # init_with = "last"  # imagenet, coco, or last
-
-    if init_with == "imagenet":
-    #     loc=model.load_weights(model.get_imagenet_weights(), by_name=True)
-        loc=model.load_weights(RESNET_MODEL_PATH, by_name=True)
-    elif init_with == "coco":
-        # Load weights trained on MS COCO, but skip layers that
-        # are different due to the different number of classes
-        
-        # See README for instructions to download the COCO weights
-        loc=model.load_weights(COCO_MODEL_PATH, by_name=True,
-                           exclude=["mrcnn_class_logits", "mrcnn_bbox_fc", "mrcnn_bbox", "mrcnn_mask"])
-    elif init_with == "last":
-        # Load the last model you trained and continue training, placing checkpouints in same folder
-        loc= model.load_weights(model.find_last()[1], by_name=True)
-    else:
-        assert init_with != "", "Provide path to trained weights"
-        print("Loading weights from ", init_with)
-        loc = model.load_weights(init_with, by_name=True)    
-
-        
-    print('Load weights complete', loc)        
-    
 
 """
 ##------------------------------------------------------------------------------------    

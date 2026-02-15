@@ -35,15 +35,13 @@ class NewShapesConfig(Config):
 
     # Number of classes (including background)
     NUM_CLASSES = 1 + 6  # background + 6 shapes
-    MAX_SHAPES_PER_IMAGE = 15
-    MIN_SHAPES_PER_IMAGE = 1
+    SHAPES_PER_IMAGE = 7
 
     # Use small images for faster training. Set the limits of the small side
     # the large side, and that determines the image shape.
     IMAGE_MIN_DIM = 128
     IMAGE_MAX_DIM = 128
-    IMAGE_BUFFER  = 20
-    
+
     # Use smaller anchors because our image and objects are small
     RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)  # anchor side in pixels
 
@@ -65,15 +63,12 @@ class NewShapesDataset(Dataset):
     shapes (triangles, squares, circles) placed randomly on a blank surface.
     The images are generated on the fly. No file access required.
     '''
-    def __init__(self, config ):
-        self.height = config.IMAGE_SHAPE[0]
-        self.width  = config.IMAGE_SHAPE[1]
-        self.min_shapes_per_image = config.MIN_SHAPES_PER_IMAGE
-        self.max_shapes_per_image = config.MAX_SHAPES_PER_IMAGE
-        self.buffer = config.IMAGE_BUFFER
-        super().__init__()
+    # def __init__(self, height, width ):
+        # self.height = height
+        # self.width  = width 
     
-    def load_shapes(self, count, buffer = 20):
+    
+    def load_shapes(self, count, height, width, shapes_per_image=7, buffer = 20):
         '''
         Generate the requested number of synthetic images.
         count: number of images to generate.
@@ -91,9 +86,9 @@ class NewShapesDataset(Dataset):
         self.add_class("shapes", 4, "building")
         self.add_class("shapes", 5, "tree")
         self.add_class("shapes", 6, "cloud")
-        buffer = self.buffer
-        height = self.height
-        width  = self.width
+        self.buffer = buffer
+        self.shapes_per_image = shapes_per_image
+        print(' Shapes Per Image: ', self.shapes_per_image)
         self.Min_Y = {}
         self.Max_Y = {}
         self.Min_X = {}
@@ -140,6 +135,7 @@ class NewShapesDataset(Dataset):
             # if i % 25 == 0:
                 # print(' Add image ---> ',i )
             bg_color, shapes = self.random_image(i, height, width)
+            
             self.add_image("shapes", image_id=i, path=None,
                            width=width, height=height,
                            bg_color=bg_color, shapes=shapes)
@@ -334,15 +330,16 @@ class NewShapesDataset(Dataset):
 
         
     def random_shape(self, shape, height, width):
-		"""
+        '''
         Generates specifications of a random shape that lies within
         the given height and width boundaries.
         Returns a tuple of three valus:
         * The shape name (square, circle, ...)
-        * Shape color: a tuple of 3 values, RGB.
-        * Shape dimensions: A tuple of values that define the shape size
+        * color:     Shape color: a tuple of 3 values, RGB.
+        * x,y  :     location od center of object
+        * sx,sy:     Shape dimensions: A tuple of values that define the shape size
                             and location. Differs per shape type.
-		"""
+        '''
         # Shape
 #         shape = random.choice(["square", "circle", "triangle", "rectangle", "person", "car"])
         
@@ -445,7 +442,7 @@ class NewShapesDataset(Dataset):
         # Generate a few random shapes and record their
         # bounding boxes
         shapes     = []
-        N = random.randint(self.min_shapes_per_image, self.max_shapes_per_image)    # number to shapes in image 
+        N = random.randint(1, self.shapes_per_image)    # number to shapes in image 
         
         shape_choices = ["person", "car", "sun", "building", "tree", "cloud"]
         

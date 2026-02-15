@@ -1,0 +1,1 @@
+python test_model_mod.py  --epochs 10 --steps_in_epoch 7 --last_epoch 4000 --logs_dir mrcnn_development_logs --batch_size 32 --lr 0.0001
